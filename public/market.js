@@ -1,3 +1,4 @@
+import { buildAnalysis } from './market-analysis.js';
 import { WINDOWS, change, historical, flow, weighted, normalizeFunding, aggregateHistory, numeric } from './metrics.js';
 const B='https://fapi.binance.com', Y='https://api.bybit.com/v5/market', O='https://www.okx.com/api/v5', G='https://api.gateio.ws/api/v4/futures/usdt';
 const n=v=>v==null||v===''||!Number.isFinite(Number(v))?null:Number(v);
@@ -68,5 +69,5 @@ export async function collect() {
   const chartSeries=[{name:'Binance',rows:arr(d.k1).slice(-48)},{name:'Bybit',rows:list(d.byk1)},{name:'OKX',rows:arr(d.okxk1?.data)}].filter(s=>weights[s.name]>0&&s.rows.length>=48);
   const chartTimes=[...new Set(chartSeries.flatMap(s=>s.rows.map(k=>n(k[0]))))].sort((a,b)=>a-b);
   const chart=chartTimes.map(time=>{const rows=chartSeries.map(s=>({name:s.name,value:weights[s.name],price:n(s.rows.find(k=>n(k[0])===time)?.[4])}));return {time,price:rows.every(r=>numeric(r.price))?weighted(rows,'price').value:null}}).filter(r=>numeric(r.price)).slice(-48);
-  return {mode:'live',fetchedAt:now,price:price.value,priceChange:priceChange.value,funding:funding.value,oi,volume:vol.length?vol.reduce((s,e)=>s+e.volume,0):null,exchanges,ratios,history,chart,errors,coverage:{price:price.sources,funding:funding.sources,volume:vol.map(e=>e.name),chart:chartSeries.map(s=>s.name)},aggregation:'OI weighted; funding normalized to 8h; matched historical cohorts; Hyperliquid USDC assumed USD parity'};
+  return {analysis:buildAnalysis({now,binHistory:arr(d.hist5),byHistory:list(d.byoi1),binCandles:arr(d.k1),byMarks:list(d.bymark1),funding:funding.value}),mode:'live',fetchedAt:now,price:price.value,priceChange:priceChange.value,funding:funding.value,oi,volume:vol.length?vol.reduce((s,e)=>s+e.volume,0):null,exchanges,ratios,history,chart,errors,coverage:{price:price.sources,funding:funding.sources,volume:vol.map(e=>e.name),chart:chartSeries.map(s=>s.name)},aggregation:'OI weighted; funding normalized to 8h; matched historical cohorts; Hyperliquid USDC assumed USD parity'};
 }
