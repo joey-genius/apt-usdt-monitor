@@ -17,5 +17,6 @@ export function renderReport(d){
  const flow=section('主力净流入参考 $');
  note(flow,'代理指标：主动买卖净额 · 正值为主动净买入，负值为主动净卖出');
  for(const h of d.history||[]){row(flow,[period(h.minutes),valid(h.flow)?(h.flow<0?'-':'')+money(Math.abs(h.flow)):'—'],'report-flow');note(flow,(h.flowSources?.join(' + ')||'无可用来源')+' · '+(h.flowBreakdown?.map(x=>x.name+' '+(x.value<0?'-':'+')+money(Math.abs(x.value))).join(' / ')||'演示或暂无明细')+(h.flowEnd?' · 截至 '+new Date(h.flowEnd).toLocaleString('zh-CN',{hour12:false}):''));}
- note(flow,'Binance + OKX 同时段美元主动净额相加，不按持仓加权。逐行显示实际来源；OKX后台约5分钟采集（调度可能延迟），快照超过30分钟或历史缺段即剔除。不是可识别主力账户的资金流。');
+ note(flow,'尝试 Binance、OKX、Bybit、Bitget、Gate 五家；同周期美元净额相加，不按持仓加权。Bybit / Bitget / Gate 使用近期逐笔成交，仅完整覆盖的周期纳入；其余不补造。后台计划每5分钟采集，可能延迟，快照超过30分钟剔除。不是已识别主力账户资金流。');
+ const coverage=document.createElement('details');const summary=document.createElement('summary');summary.textContent='查看未纳入来源及原因';coverage.className='report-note';coverage.append(summary);for(const h of d.history||[]){if(h.flowExcluded?.length)note(coverage,period(h.minutes)+'：'+h.flowExcluded.map(v=>v.name+'（'+v.reason+'）').join('；'));}flow.append(coverage);
 }

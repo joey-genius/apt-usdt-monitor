@@ -15,5 +15,16 @@ export function aggregateFlow({minutes,now,binance,okxSnapshot}) {
   const okx=complete?selected.reduce((sum,r)=>sum+r.buy-r.sell,0):null;
   const bin=flow(binance,minutes,end,interval);
   const breakdown=[{name:'Binance',value:bin},{name:'OKX',value:okx}].filter(r=>numeric(r.value));
-  return {flow:breakdown.length?breakdown.reduce((s,r)=>s+r.value,0):null,flowSources:breakdown.map(r=>r.name),flowBreakdown:breakdown,flowStart:start,flowEnd:end,flowSnapshotAt:fresh?snapshotTime:null};
+  const flowExcluded=[];
+  for(const name of ['Bybit','Bitget','Gate']) {
+    const venue=okxSnapshot?.recent?.find(r=>r.name===name);
+    let reason=null;
+    if(!fresh)reason='采集快照缺失或过期';
+    else if(!venue||venue.status!=='ok')reason=venue?.error||'未返回数据';
+    else if(!numeric(venue.start)||!numeric(venue.end)||venue.start>start||venue.end<end)reason='近期成交未覆盖完整周期';
+    else if(!Array.isArray(venue.trades)||!venue.trades.every(t=>numeric(t.time)&&numeric(t.net)))reason='成交数据无效';
+    if(reason)flowExcluded.push({name,reason});
+    else breakdown.push({name,value:venue.trades.filter(t=>t.time>=start&&t.time<end).reduce((s,t)=>s+t.net,0)});
+  }
+  return {flow:breakdown.length?breakdown.reduce((s,r)=>s+r.value,0):null,flowSources:breakdown.map(r=>r.name),flowBreakdown:breakdown,flowExcluded,flowStart:start,flowEnd:end,flowSnapshotAt:fresh?snapshotTime:null};
 }

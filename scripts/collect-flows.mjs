@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
+import { collectRecent } from './recent-flows.mjs';
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function pages(period,count) {
   const result=new Map();let cursor;
@@ -14,10 +15,13 @@ async function pages(period,count) {
   }
   return [...result.values()].sort((a,b)=>a.time-b.time);
 }
+const recentPromise=collectRecent();
 const fiveMinute=await pages('5m',3);
 const hourly=await pages('1H',2);
+const recent=await recentPromise;
 const fetchedAt=Date.now();
 if(fetchedAt-fiveMinute.at(-1).time>900000||fetchedAt-hourly.at(-1).time>7200000)throw Error('OKX data stale');
 await mkdir('public/data',{recursive:true});
-await writeFile('public/data/okx-flows.json',JSON.stringify({fetchedAt,source:'OKX APT-USDT-SWAP',unit:'USD',timestampConvention:'candle-open',fiveMinute,hourly}));
+await writeFile('public/data/okx-flows.json',JSON.stringify({fetchedAt,source:'OKX + Bybit + Bitget + Gate',unit:'USD',timestampConvention:'candle-open',fiveMinute,hourly,recent}));
+console.log(recent.map(v=>`${v.name}: ${v.status}; ${v.trades.length} trades; ${v.error||''}`).join('\n'));
 console.log(`OKX snapshot: ${fiveMinute.length} 5m rows, ${hourly.length} hourly rows; ${new Date(fetchedAt).toISOString()}`);

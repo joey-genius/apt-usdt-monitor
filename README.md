@@ -90,3 +90,9 @@ Bybit 使用官方 `singleOpenInterestValue`，不将双边持仓与其他交易
 OKX采用官方 `/api/v5/rubik/stat/taker-volume-contract`，`unit=2` 为美元计价额，返回 `[ts,sellVol,buyVol]`。时间戳为周期起点，排除未完成周期。单次最多100条，因此采集3页5分钟、2页小时数据，覆盖到168小时。该接口不能可靠地从浏览器跨域读取，使用GitHub Actions每5分钟请求并发布 `data/okx-flows.json`；调度可能延迟，不保证精确5分钟到账。快照超过30分钟、时间有缺段或数据无效时，OKX从对应行剔除，页面明确显示实际剩余来源。
 
 定时工作流同时完成网站发布，后续将代码推送到main即可更新；不再手动推送gh-pages。每次运行先检查脚本和指标测试，再采集，失败不覆盖已发布页面。分析卡片中的主动买卖确认仍使用Binance并明确标注，与净额聚合表分开。
+
+## Bybit / Bitget / Gate 逐笔净额扩展
+
+后台同时尝试三家近期最多1000笔成交。Bybit/Bitget用价格×币数×主动方向；Gate用价格×合约数×quanto_multiplier，正数量为主动买入、负为主动卖出；排除内部交易和场外大宗成交。按成交ID去重，仅当最近成交记录的起止时间完整包住统一统计窗口时纳入。不把最近1000笔当24小时，不跨采集批次拼接，不补造历史。每行可展开查看未纳入原因；来源随成交密度、网络地区限制和周期变化。
+
+依据：[Bybit Recent Trades](https://bybit-exchange.github.io/docs/v5/market/recent-trade)、[Gate Futures Trades](https://www.gate.com/docs/developers/futures/ws/en/)。新增指标仍是主动成交净额，不是可识别主力账户的资金流。

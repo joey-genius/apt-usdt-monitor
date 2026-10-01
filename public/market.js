@@ -1,4 +1,4 @@
-import { aggregateFlow } from './flows.js';
+import { aggregateFlow } from './flows.js?v=20261001-flow5';
 import { buildAnalysis } from './market-analysis.js';
 import { WINDOWS, change, historical, flow, weighted, normalizeFunding, aggregateHistory, numeric } from './metrics.js';
 const B='https://fapi.binance.com', Y='https://api.bybit.com/v5/market', O='https://www.okx.com/api/v5', G='https://api.gateio.ws/api/v4/futures/usdt';
