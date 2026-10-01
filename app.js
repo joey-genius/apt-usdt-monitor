@@ -1,3 +1,4 @@
+import { renderInsights, initInsights } from './insight-ui.js';
 import { collect } from './market.js';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
@@ -15,6 +16,7 @@ function demo() {
 }
 function render(d) {
   current=d;
+  renderInsights(d);
   $('price').textContent=valid(d.price)?'$'+d.price.toFixed(4):'—';
   $('price-sub').innerHTML=`<span class="${cls(d.priceChange)}">${valid(d.priceChange)?(d.priceChange>=0?'+':'')+d.priceChange.toFixed(2)+'%':'—'}</span> <span class="muted">过去 24 小时</span>`;
   $('funding').textContent=valid(d.funding)?(d.funding*100).toFixed(4)+'%':'—';
@@ -79,3 +81,5 @@ $('refresh').addEventListener('click',refresh);
 $('export').addEventListener('click',()=>{if(!current)return;const blob=new Blob([JSON.stringify(current,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`APTUSDT-${current.mode}-${current.fetchedAt}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
 function tick(){$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});}
 tick();setInterval(tick,1000);setInterval(()=>{if($('auto').checked&&!busy)refresh()},30000);refresh();
+
+initInsights();
