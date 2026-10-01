@@ -16,6 +16,6 @@ export function renderReport(d){
  for(const h of d.history||[]){const line=row(history,[period(h.minutes),money(h.previous),valid(h.change)?`(${h.change.toFixed(4)}%)`:'(—)'],'report-history');line.title=`来源：${h.sources?.join(' / ')||'演示或暂无数据'}；同组当前：${money(h.current)}`;const delta=valid(h.current)&&valid(h.previous)?h.current-h.previous:null;note(history,`${h.sources?.join(' / ')||'演示或暂无数据'} · 同组当前 ${money(h.current)} · 增减 ${valid(delta)?(delta>=0?'+':'-')+money(Math.abs(delta)):'—'}`);}
  const flow=section('主力净流入参考 $');
  note(flow,'代理指标：主动买卖净额 · 正值为主动净买入，负值为主动净卖出');
- for(const h of d.history||[])row(flow,[period(h.minutes),valid(h.flow)?(h.flow<0?'-':'')+money(Math.abs(h.flow)):'—'],'report-flow');
- note(flow,'仅 Binance 完整K线 · 主动买入减主动卖出，并非可识别的主力净流入。');
+ for(const h of d.history||[]){row(flow,[period(h.minutes),valid(h.flow)?(h.flow<0?'-':'')+money(Math.abs(h.flow)):'—'],'report-flow');note(flow,(h.flowSources?.join(' + ')||'无可用来源')+' · '+(h.flowBreakdown?.map(x=>x.name+' '+(x.value<0?'-':'+')+money(Math.abs(x.value))).join(' / ')||'演示或暂无明细')+(h.flowEnd?' · 截至 '+new Date(h.flowEnd).toLocaleString('zh-CN',{hour12:false}):''));}
+ note(flow,'Binance + OKX 同时段美元主动净额相加，不按持仓加权。逐行显示实际来源；OKX后台约5分钟采集（调度可能延迟），快照超过30分钟或历史缺段即剔除。不是可识别主力账户的资金流。');
 }

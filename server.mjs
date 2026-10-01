@@ -9,7 +9,7 @@ async function snapshot() {
   if (!pending) pending = collect().then(d=>(cached=d)).finally(()=>pending=null);
   return pending;
 }
-const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js','/boot.js':'boot.js','/report.js':'report.js','/report.css':'report.css','/market-analysis.js':'market-analysis.js','/insights.js':'insights.js','/insight-ui.js':'insight-ui.js'};
+const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js','/flows.js':'flows.js','/data/okx-flows.json':'data/okx-flows.json','/boot.js':'boot.js','/report.js':'report.js','/report.css':'report.css','/market-analysis.js':'market-analysis.js','/insights.js':'insights.js','/insight-ui.js':'insight-ui.js'};
 http.createServer(async(req,res)=>{
   const path = new URL(req.url,'http://localhost').pathname;
   try {
@@ -19,6 +19,6 @@ http.createServer(async(req,res)=>{
     }
     if (!files[path]) {res.writeHead(404);res.end('Not found');return;}
     const body = await readFile(new URL(`./public/${files[path]}`,import.meta.url));
-    res.writeHead(200,{'Content-Type':path.endsWith('.js')?'text/javascript; charset=utf-8':path.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff'});res.end(body);
+    res.writeHead(200,{'Content-Type':path.endsWith('.json')?'application/json; charset=utf-8':path.endsWith('.js')?'text/javascript; charset=utf-8':path.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff'});res.end(body);
   } catch(e) {res.writeHead(500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:'服务暂时不可用'}));}
 }).listen(PORT,'127.0.0.1',()=>console.log(`APT Monitor: http://127.0.0.1:${PORT}`));

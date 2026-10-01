@@ -1,3 +1,4 @@
+import { aggregateFlow } from './flows.js';
 import { buildAnalysis } from './market-analysis.js';
 import { WINDOWS, change, historical, flow, weighted, normalizeFunding, aggregateHistory, numeric } from './metrics.js';
 const B='https://fapi.binance.com', Y='https://api.bybit.com/v5/market', O='https://www.okx.com/api/v5', G='https://api.gateio.ws/api/v4/futures/usdt';
@@ -6,6 +7,7 @@ const mul=(a,b)=>numeric(a)&&numeric(b)?a*b:null;
 const arr=x=>Array.isArray(x)?x:[];
 const list=x=>arr(x?.result?.list);
 async function get(url,body) {
+  if(url.startsWith('file:')){const {readFile}=await import('node:fs/promises');return JSON.parse(await readFile(new URL(url),'utf8'));}
   const response=await fetch(url,{signal:AbortSignal.timeout(10000),...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});
   if(!response.ok)throw Error(`HTTP ${response.status}`);
   const d=await response.json();
@@ -14,6 +16,7 @@ async function get(url,body) {
 }
 export async function collect() {
   const endpoints={
+    okxFlowSnapshot:typeof location!=='undefined'?new URL('./data/okx-flows.json?t='+Math.floor(Date.now()/300000),location.href).href:new URL('./data/okx-flows.json',import.meta.url).href,
     ticker:`${B}/fapi/v1/ticker/24hr?symbol=APTUSDT`,premium:`${B}/fapi/v1/premiumIndex?symbol=APTUSDT`,oi:`${B}/fapi/v1/openInterest?symbol=APTUSDT`,fundInfo:`${B}/fapi/v1/fundingInfo`,
     accounts:`${B}/futures/data/topLongShortAccountRatio?symbol=APTUSDT&period=5m&limit=1`,positions:`${B}/futures/data/topLongShortPositionRatio?symbol=APTUSDT&period=5m&limit=1`,global:`${B}/futures/data/globalLongShortAccountRatio?symbol=APTUSDT&period=5m&limit=1`,
     hist5:`${B}/futures/data/openInterestHist?symbol=APTUSDT&period=5m&limit=500`,hist1:`${B}/futures/data/openInterestHist?symbol=APTUSDT&period=1h&limit=200`,k5:`${B}/fapi/v1/klines?symbol=APTUSDT&interval=5m&limit=500`,k1:`${B}/fapi/v1/klines?symbol=APTUSDT&interval=1h&limit=200`,
@@ -64,7 +67,7 @@ export async function collect() {
       if(previous===null&&minutes>=60)previous=historical(series[1],now-minutes*60000,7200000);
       return {name,current:weights[name],previous};
     });
-    return {minutes,...aggregateHistory(matched),flow:flow(arr(d[minutes<=1440?'k5':'k1']),minutes,now,minutes<=1440?300000:3600000),flowSources:['Binance']};
+    return {minutes,...aggregateHistory(matched),...aggregateFlow({minutes,now,binance:arr(d[minutes<=1440?'k5':'k1']),okxSnapshot:d.okxFlowSnapshot})};
   });
   const chartSeries=[{name:'Binance',rows:arr(d.k1).slice(-48)},{name:'Bybit',rows:list(d.byk1)},{name:'OKX',rows:arr(d.okxk1?.data)}].filter(s=>weights[s.name]>0&&s.rows.length>=48);
   const chartTimes=[...new Set(chartSeries.flatMap(s=>s.rows.map(k=>n(k[0]))))].sort((a,b)=>a-b);

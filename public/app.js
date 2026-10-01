@@ -1,6 +1,6 @@
-import { renderReport } from './report.js?v=20261001-fix1';
+import { renderReport } from './report.js?v=20261001-flow2';
 import { renderInsights } from './insight-ui.js';
-import { collect } from './market.js';
+import { collect } from './market.js?v=20261001-flow2';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
 const windows = [5,15,30,60,240,480,720,1440,2880,4320,10080];
