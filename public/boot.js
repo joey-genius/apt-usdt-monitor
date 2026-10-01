@@ -1,5 +1,5 @@
 // Keep the error handler outside the module graph so even import/parse errors surface.
-import('./app.js?v=20261001-flow5').catch(error => {
+import('./app.js?v=20261001-flow5b').catch(error => {
   const status = document.getElementById('status');
   const report = document.getElementById('contract-report');
   const notice = document.getElementById('notice');

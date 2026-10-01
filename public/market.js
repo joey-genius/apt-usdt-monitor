@@ -1,4 +1,5 @@
-import { aggregateFlow } from './flows.js?v=20261001-flow5';
+import { normalizeTrades } from './trades.js';
+import { aggregateFlow } from './flows.js?v=20261001-flow5b';
 import { buildAnalysis } from './market-analysis.js';
 import { WINDOWS, change, historical, flow, weighted, normalizeFunding, aggregateHistory, numeric } from './metrics.js';
 const B='https://fapi.binance.com', Y='https://api.bybit.com/v5/market', O='https://www.okx.com/api/v5', G='https://api.gateio.ws/api/v4/futures/usdt';
@@ -16,6 +17,7 @@ async function get(url,body) {
 }
 export async function collect() {
   const endpoints={
+    bybitTrades:'https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=APTUSDT&limit=1000',
     okxFlowSnapshot:typeof location!=='undefined'?new URL('./data/okx-flows.json?t='+Math.floor(Date.now()/300000),location.href).href:new URL('./data/okx-flows.json',import.meta.url).href,
     ticker:`${B}/fapi/v1/ticker/24hr?symbol=APTUSDT`,premium:`${B}/fapi/v1/premiumIndex?symbol=APTUSDT`,oi:`${B}/fapi/v1/openInterest?symbol=APTUSDT`,fundInfo:`${B}/fapi/v1/fundingInfo`,
     accounts:`${B}/futures/data/topLongShortAccountRatio?symbol=APTUSDT&period=5m&limit=1`,positions:`${B}/futures/data/topLongShortPositionRatio?symbol=APTUSDT&period=5m&limit=1`,global:`${B}/futures/data/globalLongShortAccountRatio?symbol=APTUSDT&period=5m&limit=1`,
@@ -61,6 +63,7 @@ export async function collect() {
     return {timestamp:n(r.timestamp),sumOpenInterestValue:mul(n(r.singleOpenInterest),n(mark?.[1]))};
   }).filter(r=>numeric(r.sumOpenInterestValue));
   const histories={Binance:[arr(d.hist5),arr(d.hist1)],Bybit:[byHistory('byoi5','bymark5'),byHistory('byoi1','bymark1')],OKX:['okxoi5','okxoi1'].map(key=>arr(d[key]?.data).map(r=>({timestamp:n(r[0]),sumOpenInterestValue:n(r[3])})))};
+  if(d.okxFlowSnapshot&&d.bybitTrades?.retCode===0){try{const recent=normalizeTrades('Bybit',list(d.bybitTrades));d.okxFlowSnapshot.recent=[...(d.okxFlowSnapshot.recent||[]).filter(r=>r.name!=='Bybit'),recent];}catch{}}
   const history=WINDOWS.map(minutes=>{
     const matched=Object.entries(histories).map(([name,series])=>{
       let previous=historical(series[0],now-minutes*60000,600000);

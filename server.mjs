@@ -9,7 +9,7 @@ async function snapshot() {
   if (!pending) pending = collect().then(d=>(cached=d)).finally(()=>pending=null);
   return pending;
 }
-const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js','/flows.js':'flows.js','/data/okx-flows.json':'data/okx-flows.json','/boot.js':'boot.js','/report.js':'report.js','/report.css':'report.css','/market-analysis.js':'market-analysis.js','/insights.js':'insights.js','/insight-ui.js':'insight-ui.js'};
+const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js','/flows.js':'flows.js','/trades.js':'trades.js','/data/okx-flows.json':'data/okx-flows.json','/boot.js':'boot.js','/report.js':'report.js','/report.css':'report.css','/market-analysis.js':'market-analysis.js','/insights.js':'insights.js','/insight-ui.js':'insight-ui.js'};
 http.createServer(async(req,res)=>{
   const path = new URL(req.url,'http://localhost').pathname;
   try {
