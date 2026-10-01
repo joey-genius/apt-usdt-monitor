@@ -48,9 +48,9 @@ export async function collect() {
     const gr=n(gateRatio?.[gateKey]);
     samples.push({name:'Gate',value:weights.Gate,long:gr>=0&&gr!==null?gr/(1+gr):null,timestamp:mul(n(gateRatio?.time),1000)});
     if(key==='global')samples.push({name:'Bybit',value:weights.Bybit,long:n(list(d.byratio)[0]?.buyRatio),timestamp:n(list(d.byratio)[0]?.timestamp)});
-    const fresh=samples.filter(r=>r.timestamp&&now-r.timestamp>=-60000&&now-r.timestamp<900000&&r.long>=0&&r.long<=1);
+    const fresh=samples.filter(r=>r.timestamp&&now-r.timestamp>=-60000&&now-r.timestamp<900000&&numeric(r.long)&&r.long>=0&&r.long<=1);
     const combined=weighted(fresh,'long');
-    return {key,ratio:combined.value!==null&&combined.value<1?combined.value/(1-combined.value):null,long:combined.value,sources:combined.sources,timestamp:combined.sources.length?Math.min(...fresh.filter(r=>combined.sources.includes(r.name)).map(r=>r.timestamp)):null};
+    return {key,ratio:combined.value!==null&&combined.value<1?combined.value/(1-combined.value):null,long:combined.value,sources:combined.sources,samples:fresh.filter(r=>combined.sources.includes(r.name)).map(r=>({name:r.name,long:r.long,ratio:r.long<1?r.long/(1-r.long):null,timestamp:r.timestamp})),timestamp:combined.sources.length?Math.min(...fresh.filter(r=>combined.sources.includes(r.name)).map(r=>r.timestamp)):null};
   });
   const byHistory=(key,markKey)=>list(d[key]).map(r=>{
     // OI timestamp is a point in time: use that candle's opening mark price, not its future close.
