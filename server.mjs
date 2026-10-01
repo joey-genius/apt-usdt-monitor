@@ -9,7 +9,7 @@ async function snapshot() {
   if (!pending) pending = collect().then(d=>(cached=d)).finally(()=>pending=null);
   return pending;
 }
-const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js'};
+const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js','/insights.js':'insights.js','/insight-ui.js':'insight-ui.js'};
 http.createServer(async(req,res)=>{
   const path = new URL(req.url,'http://localhost').pathname;
   try {
