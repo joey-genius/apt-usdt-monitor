@@ -1,0 +1,9 @@
+{
+  "name": "apt-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "APT/USDT public futures market monitor",
+  "scripts": { "start": "node start.mjs", "test": "node --test" },
+  "engines": { "node": ">=24" }
+}
