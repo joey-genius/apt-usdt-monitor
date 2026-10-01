@@ -1,3 +1,4 @@
+import { renderReport } from './report.js';
 import { renderInsights } from './insight-ui.js';
 import { collect } from './market.js';
 const $ = id => document.getElementById(id);
@@ -16,6 +17,7 @@ function demo() {
 }
 function render(d) {
   current=d;
+  renderReport(d);
   renderInsights(d);
   $('price').textContent=valid(d.price)?'$'+d.price.toFixed(4):'—';
   $('price-sub').innerHTML=`<span class="${cls(d.priceChange)}">${valid(d.priceChange)?(d.priceChange>=0?'+':'')+d.priceChange.toFixed(2)+'%':'—'}</span> <span class="muted">过去 24 小时</span>`;
@@ -82,3 +84,6 @@ $('export').addEventListener('click',()=>{if(!current)return;const blob=new Blob
 function tick(){$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});}
 tick();setInterval(tick,1000);setInterval(()=>{if($('auto').checked&&!busy)refresh()},30000);refresh();
 
+
+$('report-date').textContent=new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
+$('copy-report').addEventListener('click',async()=>{try{await navigator.clipboard.writeText('APT/USDT 合约\n'+$('contract-report').innerText);$('copy-report').textContent='已复制';}catch{$('copy-report').textContent='复制失败，请选中文本复制';}setTimeout(()=>$('copy-report').textContent='▢ 复制数据报告',2500)});
