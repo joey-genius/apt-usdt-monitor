@@ -14,16 +14,17 @@ export function interpretData(d) {
   if(es.length)cards.push({title:'市场覆盖与集中度',fact:`${es.length} 家有持仓数据；${es[0].name} 占已覆盖持仓 ${(es[0].value/total*100).toFixed(1)}%。`,reading:'权重较大的交易所对加权价格与费率影响更大；缺失交易所会改变样本构成。',watch:'对比聚合来源表，避免把覆盖范围变化误读为资金迁移。'});
   return cards;
 }
-export function classifyRelease(r) {
-  const label=`${r.name||''} ${r.tag_name||''}`;
-  const candidate=r.prerelease||/(?:^|[-_\s])(?:rc\d*|alpha\d*|beta\d*|testnet|devnet)(?:$|[-_\s])/i.test(label);
-  const hotfix=/hotfix|patch/i.test(label);
-  return {title:label.trim()?r.name||r.tag_name:'官方版本公告',kind:candidate?'候选 / 测试版本':hotfix?'维护版本公告':'版本发布公告',fact:`Aptos 官方仓库发布 ${r.tag_name||'新版本'}。${candidate?'名称或标记显示为候选/测试版本。':'发布记录本身不证明主网已采用该版本。'}`,reading:hotfix?'维护公告值得核对修复范围、影响组件和运营要求；仅凭“hotfix”字样不能认定发生安全事故。':'版本发布可能影响节点运维或开发者功能；需阅读发布说明并核对是否适用于主网。',watch:'关注主网部署确认、节点采用情况及链上运行状态。技术公告不能直接解释价格涨跌。'};
-}
-export function safeLink(value) {try {const u=new URL(value);return u.protocol==='https:'?u.href:null;}catch{return null;}}
-export function normalizeReleases(data) {
-  if(!Array.isArray(data))throw Error('公告格式异常');
-  return data.filter(r=>!r.draft&&safeLink(r.html_url)&&Number.isFinite(Date.parse(r.published_at)))
-    .sort((a,b)=>Date.parse(b.published_at)-Date.parse(a.published_at)).slice(0,6)
-    .map(r=>({...classifyRelease(r),url:safeLink(r.html_url),published:r.published_at,tag:r.tag_name}));
+export function interpretPositions(d) {
+  const groups=[{title:'短线持仓 · 5分钟至1小时',minutes:[5,15,30,60]},{title:'日内持仓 · 4至24小时',minutes:[240,480,720,1440]},{title:'多日持仓 · 48至168小时',minutes:[2880,4320,10080]}];
+  return groups.map(group=>{
+    const rows=group.minutes.map(m=>d.history?.find(h=>h.minutes===m)).filter(h=>numeric(h?.change));
+    if(!rows.length)return {title:group.title,fact:'该组周期暂无有效历史数据。',reading:'数据不足，暂不判断持仓扩张或收缩。',watch:'等待历史接口恢复；不使用其他周期的数据填补。'};
+    const label=m=>m<60?m+'分钟':m/60+'小时';
+    const fact=rows.map(h=>label(h.minutes)+' '+pct(h.change)+'（'+(h.sources?.join(' / ')||'演示样本')+'）').join('；');
+    const up=rows.filter(h=>h.change>0).length,down=rows.filter(h=>h.change<0).length;
+    let reading=up===rows.length?'有效周期相对各自历史起点均呈名义持仓扩张。':down===rows.length?'有效周期相对各自历史起点均呈名义持仓收缩。':up&&down?'各周期方向分化，当前持仓相对不同历史起点有增有减，不等于已确认趋势反转。':'部分或全部周期持仓基本持平。';
+    const cohorts=new Set(rows.map(h=>(h.sources||[]).slice().sort().join('|')));
+    if(cohorts.size>1)reading+=' 这些周期的交易所覆盖不同，不能直接比较变化幅度。';
+    return {title:group.title,fact,reading,watch:'先核对同组当前/历史持仓，再结合价格和持仓币数。当前可用 '+rows.length+'/'+group.minutes.length+' 个周期；不能单凭名义持仓识别新增多头、空头或爆仓。'};
+  });
 }
