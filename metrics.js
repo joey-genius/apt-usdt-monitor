@@ -1,4 +1,18 @@
 export const WINDOWS = [5, 15, 30, 60, 240, 480, 720, 1440, 2880, 4320, 10080];
+export const numeric = n => typeof n === 'number' && Number.isFinite(n);
+export function weighted(rows, field) {
+  const included = rows.filter(r => numeric(r.value) && r.value > 0 && numeric(r[field]));
+  const weight = included.reduce((s,r) => s+r.value,0);
+  return {value:weight ? included.reduce((s,r)=>s+r.value*r[field],0)/weight:null, sources:included.map(r=>r.name), weight};
+}
+export function normalizeFunding(rate, hours) {
+  return numeric(rate) && numeric(hours) && hours>0 ? rate*8/hours : null;
+}
+export function aggregateHistory(rows) {
+  const included=rows.filter(r=>numeric(r.current)&&numeric(r.previous)&&r.previous>0);
+  const current=included.reduce((s,r)=>s+r.current,0), previous=included.reduce((s,r)=>s+r.previous,0);
+  return {previous:included.length?previous:null,current:included.length?current:null,change:included.length?change(current,previous):null,sources:included.map(r=>r.name)};
+}
 export function change(current, previous) {
   return Number.isFinite(current) && Number.isFinite(previous) && previous > 0 ? (current / previous - 1) * 100 : null;
 }
