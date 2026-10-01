@@ -1,4 +1,4 @@
-import { renderInsights, initInsights } from './insight-ui.js';
+import { renderInsights } from './insight-ui.js';
 import { collect } from './market.js';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
@@ -82,4 +82,3 @@ $('export').addEventListener('click',()=>{if(!current)return;const blob=new Blob
 function tick(){$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});}
 tick();setInterval(tick,1000);setInterval(()=>{if($('auto').checked&&!busy)refresh()},30000);refresh();
 
-initInsights();

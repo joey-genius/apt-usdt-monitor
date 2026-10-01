@@ -71,9 +71,8 @@ Bybit 使用官方 `singleOpenInterestValue`，不将双边持仓与其他交易
 
 新增口径依据：[Bybit Tickers](https://bybit-exchange.github.io/docs/v5/market/tickers)、[Bybit Open Interest](https://bybit-exchange.github.io/docs/v5/market/open-interest)、[Gate Contract](https://github.com/gateio/gateapi-python/blob/master/docs/Contract.md)、[Hyperliquid Funding](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/funding)。
 
-## 数据、事件与新闻解读
+## 数据与持仓变化解读
 
-- 数据解读随行情更新：资金费率、多空代理比例、24小时同组持仓变化、交易所集中度。基于明确规则，不作涨跌预测；缺失指标不生成结论。
-- 事件解读：1小时持仓绝对变化达到3%时显示规则异动，以及最新官方版本动态。指标异动不等于新闻事件；不推算未核验的解锁、上币或政策日期。
-- 新闻解读：每15分钟读取 Aptos 官方 GitHub 发布公告，支持手动刷新。依据标题、版本标签、发布时间作规则解读，未读取全文，不是全文摘要或媒体新闻流。候选/测试版本单独标注，发布时间不视为主网上线时间。提供官方资讯与媒体检索入口。
-- 真实公告与行情演示模式相互独立。新闻接口失败时明确提示，保留已显示记录及最后检查时间，不生成模拟新闻。
+数据解读随行情更新，涵盖费率、情绪、持仓和集中度。持仓变化解读分为短线（5分钟至1小时）、日内（4至24小时）、多日（48至168小时），逐周期显示变化及来源，说明扩张、收缩、方向分化和覆盖差异。缺失周期不补造结论。
+
+已移除事件、新闻解读及新闻接口轮询。
