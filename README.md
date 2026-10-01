@@ -96,3 +96,7 @@ OKX采用官方 `/api/v5/rubik/stat/taker-volume-contract`，`unit=2` 为美元�
 后台同时尝试三家近期最多1000笔成交。Bybit/Bitget用价格×币数×主动方向；Gate用价格×合约数×quanto_multiplier，正数量为主动买入、负为主动卖出；排除内部交易和场外大宗成交。按成交ID去重，仅当最近成交记录的起止时间完整包住统一统计窗口时纳入。不把最近1000笔当24小时，不跨采集批次拼接，不补造历史。每行可展开查看未纳入原因；来源随成交密度、网络地区限制和周期变化。
 
 依据：[Bybit Recent Trades](https://bybit-exchange.github.io/docs/v5/market/recent-trade)、[Gate Futures Trades](https://www.gate.com/docs/developers/futures/ws/en/)。新增指标仍是主动成交净额，不是可识别主力账户的资金流。
+
+## 扩展持仓历史
+
+Gate 5分钟/小时历史按双边美元持仓价值除以2，匹配当前单边持仓，覆盖至168小时。Bitget和Hyperliquid自首次部署开始累积当前持仓价值快照，保留9天，每次后台运行先恢复上一版已发布历史；源接口失败时保留历史。只采用目标时刻之前且10分钟以内的真实快照，调度缺口会导致该周期不参与，不插值。GitHub调度可能延迟，因此不保证每个周期均有六家数据。各行显示真实配对来源。

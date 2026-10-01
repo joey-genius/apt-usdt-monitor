@@ -15,13 +15,23 @@ async function pages(period,count) {
   }
   return [...result.values()].sort((a,b)=>a.time-b.time);
 }
+async function gateOpenInterest(interval,limit) {
+  const res=await fetch(`https://api.gateio.ws/api/v4/futures/usdt/contract_stats?contract=APT_USDT&interval=${interval}&limit=${limit}`,{signal:AbortSignal.timeout(20000)});
+  if(!res.ok)throw Error(`Gate OI ${res.status}`);
+  const rows=await res.json();
+  const data=rows.map(r=>({timestamp:Number(r.time)*1000,sumOpenInterestValue:Number(r.open_interest_usd)/2})).filter(r=>Number.isFinite(r.timestamp)&&Number.isFinite(r.sumOpenInterestValue)&&r.sumOpenInterestValue>=0).sort((a,b)=>a.timestamp-b.timestamp);
+  if(!data.length||Date.now()-data.at(-1).timestamp>(interval==='5m'?900000:7200000))throw Error('Gate OI stale');
+  return data;
+}
 const recentPromise=collectRecent();
 const fiveMinute=await pages('5m',3);
 const hourly=await pages('1H',2);
 const recent=await recentPromise;
+const gateOpenInterest5m=await gateOpenInterest('5m',300);
+const gateOpenInterest1h=await gateOpenInterest('1h',200);
 const fetchedAt=Date.now();
 if(fetchedAt-fiveMinute.at(-1).time>900000||fetchedAt-hourly.at(-1).time>7200000)throw Error('OKX data stale');
 await mkdir('public/data',{recursive:true});
-await writeFile('public/data/okx-flows.json',JSON.stringify({fetchedAt,source:'OKX + Bybit + Bitget + Gate',unit:'USD',timestampConvention:'candle-open',fiveMinute,hourly,recent}));
+await writeFile('public/data/okx-flows.json',JSON.stringify({fetchedAt,source:'OKX + Bybit + Bitget + Gate',unit:'USD',timestampConvention:'candle-open',fiveMinute,hourly,recent,gateOpenInterest5m,gateOpenInterest1h}));
 console.log(recent.map(v=>`${v.name}: ${v.status}; ${v.trades.length} trades; ${v.error||''}`).join('\n'));
 console.log(`OKX snapshot: ${fiveMinute.length} 5m rows, ${hourly.length} hourly rows; ${new Date(fetchedAt).toISOString()}`);

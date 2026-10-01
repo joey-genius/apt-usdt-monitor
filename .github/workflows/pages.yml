@@ -26,6 +26,8 @@ jobs:
       - run: node --test
       - name: Fetch OKX dollar taker volumes
         run: node scripts/collect-flows.mjs
+      - name: Accumulate Bitget and Hyperliquid OI history
+        run: node scripts/collect-oi.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
