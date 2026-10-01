@@ -17,4 +17,4 @@
 </details>
 <footer><span>APT MONITOR <i>·</i> 公开行情数据监测</span><button id="export">↓ 导出当前快照 JSON</button><span id="updated">尚未更新</span></footer>
 <details class="method"><summary>数据来源与计算说明</summary><p>覆盖 Binance、Bybit、OKX、Bitget、Gate、Hyperliquid 的 APT 永续合约，不代表全市场。价格 = Σ(价格 × 单边名义持仓) / Σ有效持仓；各平台费率先换算为8小时等效费率，再按持仓加权。这是比较指标，不是任何交易所的实际结算费率。</p><p>Bybit 使用 singleOpenInterestValue；Gate 使用 position_size × quanto_multiplier × mark_price。Hyperliquid 是 USDC 保证金合约，以1 USDC = 1 USD近似合并。各平台采样时间不同，不与 CoinGlass 保证一致。</p><p>多空情绪是持仓加权代理指数，不是全市场实际账户人数比；大户定义因平台而异。每项列出实际参与交易所与最早采样时间。历史变化按同组配对计算，曲线使用当前固定持仓权重，不是历史持仓加权指数。主动买卖净额目前仅 Binance，不能识别主力资金。</p><p>线上由浏览器直连公开 API，受网络、地区和跨域策略影响。关闭页面后不再后台刷新；演示数据均为模拟值。<a href="https://docs.coinglass.com/reference/authentication" target="_blank" rel="noopener noreferrer">CoinGlass 官方 API 需密钥</a>，本站没有使用其私有接口或将静态网页数值当实时数据。</p></details>
-</main></div><script type="module" src="./app.js"></script></body></html>
+</main></div><script src="./boot.js?v=20261001-fix1"></script></body></html>

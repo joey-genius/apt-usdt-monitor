@@ -1,4 +1,4 @@
-import { renderReport } from './report.js';
+import { renderReport } from './report.js?v=20261001-fix1';
 import { renderInsights } from './insight-ui.js';
 import { collect } from './market.js';
 const $ = id => document.getElementById(id);
