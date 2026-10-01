@@ -58,3 +58,15 @@ Pages 从 `gh-pages` 分支根目录部署；该分支只包含 `public/` 中的
 git subtree push --prefix public origin gh-pages
 ```
 
+
+## 多交易所聚合（2026-10-01更新）
+
+当前接入 Binance、Bybit、OKX、Bitget、Gate、Hyperliquid。价格和资金费率按有效单边名义持仓加权；资金费率统一为8小时等效。持仓与成交额求和，缺失数据不外推。Hyperliquid 为 USDC 永续，按1 USDC = 1 USD折算。OKX 的24小时报价未提供精确计价成交额，因此从成交额合计中剔除。
+
+Bybit 使用官方 `singleOpenInterestValue`，不将双边持仓与其他交易所单边持仓混加。Gate 使用 `position_size × quanto_multiplier × mark_price`。历史持仓按 Binance / Bybit / OKX 同组匹配计算；Bybit 历史单边币数以同时刻标记K线开盘价估值。各行显示来源与同组当前持仓，避免覆盖差异产生虚假变化。
+
+多空情绪为持仓加权代理指标（大户：Binance/Gate；全体账户：Binance/Bybit/Gate），不是实际全市场人数比。各交易所大户定义不同。价格曲线按当前固定持仓权重加权，并仅采用共同时间点。主动买卖净额仍只覆盖 Binance，界面明确标为局部指标。
+
+本站独立聚合公开 API，**不是 CoinGlass 数据源**。官网参考：https://www.coinglass.com/currencies/APT 。CoinGlass覆盖更多市场，其官方API需要密钥：https://docs.coinglass.com/reference/authentication 。没有复制官网瞬时数值充当持续实时数据。
+
+新增口径依据：[Bybit Tickers](https://bybit-exchange.github.io/docs/v5/market/tickers)、[Bybit Open Interest](https://bybit-exchange.github.io/docs/v5/market/open-interest)、[Gate Contract](https://github.com/gateio/gateapi-python/blob/master/docs/Contract.md)、[Hyperliquid Funding](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/funding)。
