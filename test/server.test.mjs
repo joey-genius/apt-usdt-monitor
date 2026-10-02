@@ -5,7 +5,7 @@ import net from 'node:net';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
-test('local server serves the new browser module and threshold control', { timeout: 15000 }, async () => {
+test('local server serves Binance report UI without custom trade controls', { timeout: 15000 }, async () => {
   const probe = net.createServer();
   probe.listen(0, '127.0.0.1');
   await once(probe, 'listening');
@@ -23,18 +23,24 @@ test('local server serves the new browser module and threshold control', { timeo
       child.once('exit', code => { clearTimeout(timer); reject(Error(`Server exited: ${code}`)); });
       child.stdout.once('data', () => { clearTimeout(timer); resolve(); });
     });
-    const response = await fetch(`http://127.0.0.1:${port}/large-flows.js?v=20261002-large-flow`);
+    const response = await fetch(`http://127.0.0.1:${port}/report.js?v=20261003-binance-traders`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /javascript/);
-    assert.match(await response.text(), /export function aggregateLargeTradeFlow/);
+    assert.match(await response.text(), /export function renderReport/);
     const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
-    assert.match(html, /id="large-threshold"/);
-    assert.match(html, /id="large-threshold-form"/);
-    assert.match(html, /id="large-threshold" type="number"/);
-    assert.match(html, /id="large-threshold-status" role="status"/);
-    for (const module of ['app.js', 'report.js', 'market.js', 'trades.js', 'metrics.js', 'flows.js']) {
-      assert.equal((await fetch(`http://127.0.0.1:${port}/${module}`)).status, 200);
+    assert.doesNotMatch(html, /threshold|id="flows"|大额成交|阈值/);
+    assert.match(html, /https:\/\/www\.binance\.com\/zh-CN\/futures\/funding-history\/perpetual\/trading-data/);
+    assert.match(html, /topLongShortAccountRatio/);
+    assert.match(html, /topLongShortPositionRatio/);
+    assert.match(html, /globalLongShortAccountRatio/);
+    assert.match(html, /boot\.js\?v=20261003-binance-traders/);
+    for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'insight-ui.js', 'insights.js']) {
+      assert.equal((await fetch(`http://127.0.0.1:${port}/${module}?v=20261003-binance-traders`)).status, 200);
     }
+    const app=await (await fetch(`http://127.0.0.1:${port}/app.js`)).text();
+    for(const module of ['report','market','insight-ui'])assert.ok(app.includes(`./${module}.js?v=20261003-binance-traders`));
+    const insights=await (await fetch(`http://127.0.0.1:${port}/insight-ui.js`)).text();
+    assert.match(insights,/insights\.js\?v=20261003-binance-traders/);
   } finally {
     if (child.exitCode === null) {
       const stopped = once(child, 'exit');
