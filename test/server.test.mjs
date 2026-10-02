@@ -23,7 +23,7 @@ test('local server serves Binance report UI without custom trade controls', { ti
       child.once('exit', code => { clearTimeout(timer); reject(Error(`Server exited: ${code}`)); });
       child.stdout.once('data', () => { clearTimeout(timer); resolve(); });
     });
-    const response = await fetch(`http://127.0.0.1:${port}/report.js?v=20261003-binance-traders`);
+    const response = await fetch(`http://127.0.0.1:${port}/report.js?v=20261003-top100`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /javascript/);
     assert.match(await response.text(), /export function renderReport/);
@@ -33,12 +33,14 @@ test('local server serves Binance report UI without custom trade controls', { ti
     assert.match(html, /topLongShortAccountRatio/);
     assert.match(html, /topLongShortPositionRatio/);
     assert.match(html, /globalLongShortAccountRatio/);
-    assert.match(html, /boot\.js\?v=20261003-binance-traders/);
-    for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'insight-ui.js', 'insights.js']) {
+    assert.match(html, /boot\.js\?v=20261003-top100/);
+    for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'top-trades.js', 'insight-ui.js', 'insights.js']) {
       assert.equal((await fetch(`http://127.0.0.1:${port}/${module}?v=20261003-binance-traders`)).status, 200);
     }
     const app=await (await fetch(`http://127.0.0.1:${port}/app.js`)).text();
-    for(const module of ['report','market','insight-ui'])assert.ok(app.includes(`./${module}.js?v=20261003-binance-traders`));
+    for(const module of ['report','market'])assert.ok(app.includes(`./${module}.js?v=20261003-top100`));
+    assert.ok(app.includes('./insight-ui.js?v=20261003-binance-traders'));
+    assert.equal((await fetch(`http://127.0.0.1:${port}/data/top-trades.json`)).status,200);
     const insights=await (await fetch(`http://127.0.0.1:${port}/insight-ui.js`)).text();
     assert.match(insights,/insights\.js\?v=20261003-binance-traders/);
   } finally {

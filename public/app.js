@@ -1,6 +1,6 @@
-import { renderReport } from './report.js?v=20261003-binance-traders';
+import { renderReport } from './report.js?v=20261003-top100';
 import { renderInsights } from './insight-ui.js?v=20261003-binance-traders';
-import { collect } from './market.js?v=20261003-binance-traders';
+import { collect } from './market.js?v=20261003-top100';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
 const windows = [5,15,30,60,240,480,720,1440,2880,4320,10080];
@@ -14,7 +14,7 @@ const time = n => n ? new Date(n).toLocaleString('zh-CN',{hour12:false}) : '—'
 function demo() {
   const now = Date.now();
   const ratios=[['accounts',.653,.347],['positions',.666,.334],['global',.649,.351]].map(([key,long,short])=>({key,ratio:long/short,long,short,timestamp:now,sources:[],error:null,history:Array.from({length:12},(_,i)=>({ratio:long/short,long,short,timestamp:now-i*300000}))}));
-  return {mode:'demo',fetchedAt:now,price:4.826,mark:4.825,priceChange:2.84,volume:186420000,funding:.0001,nextFunding:Math.ceil(now/28800000)*28800000,oi:92840000,exchanges:[{name:'Binance',value:92840000},{name:'Bybit',value:41620000},{name:'OKX',value:28540000}],ratios,history:windows.map((minutes,i)=>{const previous=[93420000,94630000,95700000,97350000,89670000,87920000,86400000,84200000,78910000,75640000,68750000][i];return {minutes,previous,change:(92840000/previous-1)*100}}),chart:Array.from({length:48},(_,i)=>({time:now-(47-i)*3600000,price:4.48+i*.0074+Math.sin(i*.57)*.055+Math.cos(i*1.8)*.02})),errors:[]};
+  return {mode:'demo',topTrades:null,fetchedAt:now,price:4.826,mark:4.825,priceChange:2.84,volume:186420000,funding:.0001,nextFunding:Math.ceil(now/28800000)*28800000,oi:92840000,exchanges:[{name:'Binance',value:92840000},{name:'Bybit',value:41620000},{name:'OKX',value:28540000}],ratios,history:windows.map((minutes,i)=>{const previous=[93420000,94630000,95700000,97350000,89670000,87920000,86400000,84200000,78910000,75640000,68750000][i];return {minutes,previous,change:(92840000/previous-1)*100}}),chart:Array.from({length:48},(_,i)=>({time:now-(47-i)*3600000,price:4.48+i*.0074+Math.sin(i*.57)*.055+Math.cos(i*1.8)*.02})),errors:[]};
 }
 function render(d) {
   current=d;
@@ -72,7 +72,11 @@ async function refresh() {
     else {const response=await fetch('./api/market',{signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error('服务异常');d=await response.json();}
     if(id===requestId)render(d);
   }
-  catch(e){if(id!==requestId)return;$('status').textContent='连接失败';$('status-dot').style.background='#d16b70';$('notice').hidden=false;$('notice').textContent=(hosted?'无法获取公开行情。':'无法连接本地行情服务。')+(current?'当前保留上次快照，请注意底部时间。':hosted?'请检查网络并刷新页面。':'请双击“启动监测台.cmd”，再刷新页面。');}
+  catch(e){
+    if(id!==requestId)return;
+    if(current){current={...current,topTrades:null,topTradesError:'本次行情请求失败，无法确认 Top 100 快照有效性；请刷新重试。'};renderReport(current);}
+    $('status').textContent='连接失败';$('status-dot').style.background='#d16b70';$('notice').hidden=false;$('notice').textContent=(hosted?'无法获取公开行情。':'无法连接本地行情服务。')+(current?'其余行情保留上次快照，请注意底部时间；Top 100 已标记不可用。':hosted?'请检查网络并刷新页面。':'请双击“启动监测台.cmd”，再刷新页面。');
+  }
   finally{if(id===requestId){busy=false;$('refresh').disabled=false;}}
 }
 $('mode').addEventListener('change',refresh);

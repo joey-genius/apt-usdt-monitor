@@ -10,6 +10,8 @@ async function snapshot() {
   return pending;
 }
 const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js','/flows.js':'flows.js','/binance-traders.js':'binance-traders.js','/trades.js':'trades.js','/data/oi-history.json':'data/oi-history.json','/data/okx-flows.json':'data/okx-flows.json','/boot.js':'boot.js','/report.js':'report.js','/report.css':'report.css','/market-analysis.js':'market-analysis.js','/insights.js':'insights.js','/insight-ui.js':'insight-ui.js'};
+files['/top-trades.js']='top-trades.js';
+files['/data/top-trades.json']='data/top-trades.json';
 http.createServer(async(req,res)=>{
   const path = new URL(req.url,'http://localhost').pathname;
   try {

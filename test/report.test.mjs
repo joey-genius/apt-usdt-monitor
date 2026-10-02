@@ -87,7 +87,8 @@ test('source errors are rendered literally as text and simulated values are labe
 
 test('old trade amounts and large-flow payloads do not appear in the report',()=>{
   const text=report({largeTradeThreshold:123456,history:[{minutes:5,flow:987654,largeFlow:{net:987654,buy:987654,sell:0}}]}).text();
-  assert.doesNotMatch(text,/123456|987\.65K|大额成交|最低.*金额|主动净买入/);
+  assert.doesNotMatch(text,/123456|987\.65K|大额成交|主动净买入/);
+  assert.match(text,/无最低金额门槛/);
 });
 
 test('browser demo boots without removed controls and provides explicit short/history fields',async()=>{
@@ -100,8 +101,143 @@ test('browser demo boots without removed controls and provides explicit short/hi
   vm.runInNewContext(code,context);
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(rendered.mode,'demo');
+  assert.equal(rendered.topTrades,null);
   assert.equal(rendered.ratios.length,3);
   for(const r of rendered.ratios){assert.equal(typeof r.short,'number');assert.equal(r.history.length,12);assert.equal(r.sources.length,0);}
   assert.match(elements.get('status').textContent,/所有数值均为模拟数据/);
   assert.doesNotMatch(code,/largeFlow|threshold|large-flows/);
+});
+
+const topTrades={
+  schemaVersion:1,windowStart:timestamp-86400000,windowEnd:timestamp,fetchedAt:timestamp+60000,limit:100,
+  rows:[
+    {exchange:'Binance',id:'small',time:timestamp-3000,side:'buy',price:'0.12345678',quantity:'0.01',amount:.0012345678},
+    {exchange:'Bybit',id:'largest',time:timestamp-2000,side:'sell',price:'5.00',quantity:'200',amount:1000},
+    {exchange:'Binance',id:'middle',time:timestamp-1000,side:'buy',price:'5.00',quantity:'100',amount:500},
+  ],
+  sources:[{name:'Binance',status:'ok',records:102,pages:2},{name:'Bybit',status:'ok',records:100,pages:1},{name:'Gate',status:'error',records:7,pages:1,error:'Incomplete window'},{name:'OKX',status:'unsupported',records:0,pages:0}],
+  totals:{buy:500.0012345678,sell:1000,net:-499.9987654322,netIn:0,netOut:499.9987654322,turnover:1500.0012345678,count:3},
+  allTradesTotals:{buy:25000,sell:20000,net:5000,netIn:5000,netOut:0,turnover:45000,count:202},
+};
+
+test('Top 100 follows Binance ratios, sorts across venues without an amount floor, and preserves source data',()=>{
+  const before=structuredClone(topTrades);
+  const root=report({ratios,topTrades});
+  const section=root.children.find(c=>c.className.includes('top-trades'));
+  assert.ok(root.children[root.children.indexOf(section)-1].className.includes('binance-traders'));
+  const table=section.find('table')[0],rows=table.find('tbody')[0].children;
+  assert.deepEqual(rows.map(r=>r.children.at(-1).text()),['largest','middle','small']);
+  assert.deepEqual(rows.map(r=>r.children[0].text()),['1','2','3']);
+  assert.deepEqual(rows.map(r=>r.children[3].text()),['主动卖出','主动买入','主动买入']);
+  assert.equal(rows[2].children[4].text(),'0.12345678');
+  assert.equal(rows[2].children[5].text(),'0.01');
+  assert.equal(table.find('th').length,8);
+  assert.match(table.text(),/价格（APTUSDT）.*数量（APT）.*成交金额（USDT）.*交易 ID/);
+  assert.match(section.text(),/已返回 3 \/ 100 笔（不足 100 笔/);
+  assert.match(section.text(),/窗口（本地）/);
+  assert.match(section.text(),/窗口（UTC）：2026-10-02T12:00:00\.000Z 至 2026-10-03T12:00:00\.000Z（截止）/);
+  assert.match(section.text(),/采集完成：本地 .* UTC 2026-10-03T12:01:00\.000Z/);
+  assert.equal(rows[0].children[1].text(),new Date(topTrades.rows[1].time).toLocaleString('zh-CN',{hour12:false}));
+  assert.deepEqual(topTrades,before);
+});
+
+test('Top 100 and full-window summaries label their distinct coverage and signed net',()=>{
+  const section=report({topTrades}).children.find(c=>c.className.includes('top-trades'));
+  const text=section.text(),full=section.find('details')[0];
+  assert.match(text,/最近一次完成采集.*非实时逐笔行情/);
+  assert.match(text,/完整覆盖平台：Binance \/ Bybit；失败或不支持的平台不纳入排行及汇总/);
+  assert.match(text,/Binance · 完整采集 · 102 条记录 \/ 2 页/);
+  assert.match(text,/Gate · 采集失败（未纳入） · 7 条记录 \/ 1 页 · Incomplete window/);
+  assert.match(text,/OKX · 不支持（未纳入）/);
+  assert.match(text,/主动买入不等于实际充值入金/);
+  assert.match(text,/Top 100 有符号净额仅为入选成交的买卖差，不是完整 24 小时净额/);
+  assert.match(text,/Top 100 主动买入 500\.00123457 USDT/);
+  assert.match(text,/Top 100 主动卖出 1,000\.00 USDT/);
+  assert.match(text,/Top 100 有符号净额（买 - 卖） -499\.99876543 USDT/);
+  assert.match(full.find('summary')[0].text(),/完整 24 小时汇总 · 仅完整覆盖平台 · 非 Top 100/);
+  assert.match(full.text(),/同一截止窗口内全部已采集成交，不限于 Top 100；不是全市场/);
+  assert.match(full.text(),/完整 24 小时 有符号净额（买 - 卖） \+5,000\.00 USDT/);
+  assert.match(full.text(),/汇总记录数：202 笔/);
+});
+
+test('missing or expired snapshots are distinct from a fully collected empty window',()=>{
+  const missing=report({topTrades:null,topTradesError:'快照已过期，请等待下一次采集'});
+  assert.match(missing.text(),/Top 100 快照不可用（缺失或已过期）：快照已过期/);
+  const status=missing.children.find(c=>c.className.includes('top-trades')).children.find(c=>c.className.includes('top-trades-status'));
+  assert.ok(status.className.includes('unavailable'));
+  assert.doesNotMatch(missing.text(),/无成交记录|Top 100 主动买入 0/);
+  assert.equal(missing.find('table').length,0);
+  const zero={buy:0,sell:0,net:0,netIn:0,netOut:0,turnover:0,count:0};
+  const empty=report({topTrades:{...topTrades,rows:[],sources:[{name:'Binance',status:'ok',records:0,pages:1}],totals:zero,allTradesTotals:zero}});
+  assert.match(empty.text(),/无成交记录（0 \/ 100 笔），不是数据缺失/);
+  assert.match(empty.text(),/Top 100 主动买入 0\.00 USDT/);
+  assert.doesNotMatch(empty.text(),/Top 100 快照不可用/);
+  assert.equal(empty.find('table').length,0);
+  const uncovered=report({topTrades:{...topTrades,rows:[],sources:topTrades.sources.filter(s=>s.status!=='ok'),totals:null,allTradesTotals:null}}).text();
+  assert.match(uncovered,/无完整覆盖平台，数据不可用，不代表零成交/);
+  assert.match(uncovered,/Top 100 汇总不可用，不以零替代/);
+  assert.match(uncovered,/完整 24 小时 汇总不可用，不以零替代/);
+});
+
+test('trade IDs, venues, source errors and snapshot errors are rendered as literal text',()=>{
+  const malicious='<img src=x onerror=alert(1)><script>alert(1)</script>';
+  const root=report({topTrades:{...topTrades,rows:[{...topTrades.rows[0],id:malicious,exchange:malicious}],sources:[{...topTrades.sources[0],name:malicious,error:malicious}]}});
+  const cells=root.find('tbody')[0].children[0].children;
+  assert.equal(cells[7].text(),malicious);assert.equal(cells[2].text(),malicious);
+  assert.ok(root.find('li')[0].text().includes(malicious));
+  assert.equal(root.find('img').length,0);assert.equal(root.find('script').length,0);
+  const missing=report({topTrades:null,topTradesError:malicious});
+  assert.ok(missing.text().includes(malicious));assert.equal(missing.find('img').length,0);
+});
+
+test('demo never displays actual Top 100 records even if a snapshot is supplied',()=>{
+  const root=report({mode:'demo',topTrades});
+  assert.match(root.text(),/演示模式：没有实际 Top 100 成交记录，不生成模拟成交/);
+  assert.equal(root.find('table').length,0);
+  assert.doesNotMatch(root.text(),/largest|完整覆盖平台：Binance/);
+});
+
+test('Top 100 keeps at most one hundred rows in descending amount order',()=>{
+  const rows=Array.from({length:105},(_,i)=>({...topTrades.rows[0],id:String(i),amount:i}));
+  const root=report({topTrades:{...topTrades,rows,totals:null}});
+  const rendered=root.find('tbody')[0].children;
+  assert.equal(rendered.length,100);
+  assert.equal(rendered[0].children[7].text(),'104');
+  assert.equal(rendered.at(-1).children[7].text(),'5');
+  assert.match(root.text(),/已返回 100 \/ 100 笔/);
+  assert.doesNotMatch(root.text(),/不足 100 笔/);
+});
+
+test('page links formulas and preserves ratio source and unchanged insights cache version',()=>{
+  const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+  const boot=readFileSync(new URL('../public/boot.js',import.meta.url),'utf8');
+  assert.match(html,/href="#top-trades-method"/);assert.match(html,/id="top-trades-method"/);
+  assert.match(html,/netIn = max\(B - S, 0\)/);assert.match(html,/netOut = max\(S - B, 0\)/);
+  assert.match(html,/binance\.com\/zh-CN\/futures\/funding-history\/perpetual\/trading-data/);
+  for(const name of ['style.css','boot.js'])assert.ok(html.includes(name+'?v=20261003-top100'));
+  for(const name of ['report.js','market.js'])assert.ok(app.includes(name+'?v=20261003-top100'));
+  assert.match(boot,/app\.js\?v=20261003-top100/);
+  assert.match(app,/insight-ui\.js\?v=20261003-binance-traders/);
+  assert.doesNotMatch(app,/fetch\([^\n]*top-trades/);
+});
+
+test('failed market refresh removes previous Top 100 while retaining other market context',async()=>{
+  const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+  const elements=new Map([...html.matchAll(/id="([^"]+)"/g)].map(([,id])=>[id,{value:'',textContent:'',innerHTML:'',style:{},listeners:{},addEventListener(type,fn){this.listeners[type]=fn}}]));
+  elements.get('mode').value='live';
+  let rendered,requests=0;
+  const data={mode:'live',price:5,topTrades,fetchedAt:timestamp,exchanges:[],history:[],chart:[],errors:[]};
+  const context={document:{getElementById:id=>elements.get(id)},location:{hostname:'example.com'},Date,console,setInterval(){},setTimeout,renderInsights(){},renderReport(d){rendered=d},async collect(){if(++requests>1)throw Error('Offline');return data;}};
+  const code=readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
+  vm.runInNewContext(code,context);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(rendered.topTrades,topTrades);
+  await elements.get('refresh').listeners.click();
+  assert.equal(requests,2);
+  assert.equal(rendered.topTrades,null);
+  assert.match(rendered.topTradesError,/本次行情请求失败/);
+  assert.equal(rendered.price,5);
+  assert.match(elements.get('notice').textContent,/Top 100 已标记不可用/);
+  assert.equal(elements.get('refresh').disabled,false);
 });
