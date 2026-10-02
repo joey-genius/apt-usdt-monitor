@@ -1,5 +1,5 @@
 import { analysisCards } from './market-analysis.js';
-import { interpretData } from './insights.js';
+import { interpretData } from './insights.js?v=20261003-binance-traders';
 const $=id=>document.getElementById(id);
 const date=t=>new Date(t).toLocaleString('zh-CN',{hour12:false});
 function paragraph(label,text){const p=document.createElement('p'),b=document.createElement('b');b.textContent=label+' ';p.append(b,document.createTextNode(text));return p;}

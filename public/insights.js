@@ -9,7 +9,7 @@ export function interpretData(d) {
   const h=d.history?.find(r=>r.minutes===1440);
   if(numeric(h?.change)) cards.push({title:'24小时持仓结构',fact:`${h.sources?.join(' / ')||'样本市场'} 同组名义持仓变化 ${pct(h.change)}。`,reading:h.change>0?'名义持仓扩大，可能来自新增头寸或币价变动，不能仅凭这一项判断新增多头还是空头。':h.change<0?'名义持仓缩小，可能来自平仓或币价变动，不能据此认定发生了大规模爆仓。':'名义持仓基本持平，尚无明显扩张或收缩。',watch:'核对价格、持仓币数与清算数据。价格涨跌与持仓覆盖交易所可能不同，不作机械因果配对。'});
   const r=d.ratios?.find(r=>r.key==='global');
-  if(numeric(r?.long))cards.push({title:'账户情绪',fact:`加权多头占比 ${(r.long*100).toFixed(1)}%，覆盖 ${r.sources?.join(' / ')||'演示样本'}。`,reading:r.long>.5?'样本账户情绪偏多，但账户数量不等于投入资金规模。':r.long<.5?'样本账户情绪偏空，但账户数量不等于投入资金规模。':'样本多空占比较均衡。',watch:'该数值是持仓加权代理指标，不是全市场真实人数比例，也不是反向交易信号。'});
+  if(numeric(r?.long)&&numeric(r?.short)&&(d.mode==='demo'||r.sources?.includes('Binance')))cards.push({title:'Binance 全账户情绪 · 非大户指标',fact:`${d.mode==='demo'?'模拟数据，非实际行情':'Binance APTUSDT 官方全账户数据'}：多头占比 ${(r.long*100).toFixed(2)}%，空头占比 ${(r.short*100).toFixed(2)}%。`,reading:r.long>r.short?'样本账户情绪偏多，但账户数量不等于投入资金规模。':r.long<r.short?'样本账户情绪偏空，但账户数量不等于投入资金规模。':'样本多空占比较均衡。',watch:'直接采用 Binance 全账户占比，不按持仓加权；与大户 ACCOUNT / POSITION 指标分开，不代表全市场，也不是反向交易信号。'});
   const es=(d.exchanges||[]).filter(e=>numeric(e.value)&&e.value>0).sort((a,b)=>b.value-a.value), total=es.reduce((s,e)=>s+e.value,0);
   if(es.length)cards.push({title:'市场覆盖与集中度',fact:`${es.length} 家有持仓数据；${es[0].name} 占已覆盖持仓 ${(es[0].value/total*100).toFixed(1)}%。`,reading:'权重较大的交易所对加权价格与费率影响更大；缺失交易所会改变样本构成。',watch:'对比聚合来源表，避免把覆盖范围变化误读为资金迁移。'});
   return cards;

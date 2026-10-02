@@ -1,28 +1,23 @@
-import { renderReport } from './report.js?v=20261003-custom-flow';
-import { renderInsights } from './insight-ui.js';
-import { collect } from './market.js?v=20261003-custom-flow';
-import { aggregateLargeTradeFlow, LARGE_TRADE_THRESHOLD, parseLargeTradeThreshold } from './large-flows.js?v=20261003-custom-flow';
+import { renderReport } from './report.js?v=20261003-binance-traders';
+import { renderInsights } from './insight-ui.js?v=20261003-binance-traders';
+import { collect } from './market.js?v=20261003-binance-traders';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
 const windows = [5,15,30,60,240,480,720,1440,2880,4320,10080];
 let current = null, busy = false, requestId = 0;
-let appliedThreshold = LARGE_TRADE_THRESHOLD;
 const valid = n => typeof n === 'number' && Number.isFinite(n);
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => !valid(n) ? '—' : '$' + (Math.abs(n)>=1e9 ? (n/1e9).toFixed(2)+'B' : Math.abs(n)>=1e6 ? (n/1e6).toFixed(2)+'M' : Math.abs(n)>=1e3 ? (n/1e3).toFixed(2)+'K' : n.toFixed(2));
-const signed = n => !valid(n) ? '—' : (n>=0?'+':'−')+money(Math.abs(n));
 const cls = n => !valid(n) ? 'muted' : n >= 0 ? 'positive' : 'negative';
 const period = n => n < 60 ? n+'分钟' : n/60+'小时';
 const time = n => n ? new Date(n).toLocaleString('zh-CN',{hour12:false}) : '—';
 function demo() {
   const now = Date.now();
-  return {mode:'demo',fetchedAt:now,price:4.826,mark:4.825,priceChange:2.84,volume:186420000,funding:.0001,nextFunding:Math.ceil(now/28800000)*28800000,oi:92840000,exchanges:[{name:'Binance',value:92840000},{name:'Bybit',value:41620000},{name:'OKX',value:28540000}],ratios:[{key:'accounts',ratio:1.89,long:.653,timestamp:now},{key:'positions',ratio:1.99,long:.666,timestamp:now},{key:'global',ratio:1.85,long:.649,timestamp:now}],history:windows.map((minutes,i)=>{const previous=[93420000,94630000,95700000,97350000,89670000,87920000,86400000,84200000,78910000,75640000,68750000][i];return {minutes,previous,change:(92840000/previous-1)*100,largeFlow:null,flow:[-184000,-420000,-738000,-1260000,2430000,3620000,2840000,5920000,8160000,12480000,18960000][i]}}),chart:Array.from({length:48},(_,i)=>({time:now-(47-i)*3600000,price:4.48+i*.0074+Math.sin(i*.57)*.055+Math.cos(i*1.8)*.02})),errors:[]};
+  const ratios=[['accounts',.653,.347],['positions',.666,.334],['global',.649,.351]].map(([key,long,short])=>({key,ratio:long/short,long,short,timestamp:now,sources:[],error:null,history:Array.from({length:12},(_,i)=>({ratio:long/short,long,short,timestamp:now-i*300000}))}));
+  return {mode:'demo',fetchedAt:now,price:4.826,mark:4.825,priceChange:2.84,volume:186420000,funding:.0001,nextFunding:Math.ceil(now/28800000)*28800000,oi:92840000,exchanges:[{name:'Binance',value:92840000},{name:'Bybit',value:41620000},{name:'OKX',value:28540000}],ratios,history:windows.map((minutes,i)=>{const previous=[93420000,94630000,95700000,97350000,89670000,87920000,86400000,84200000,78910000,75640000,68750000][i];return {minutes,previous,change:(92840000/previous-1)*100}}),chart:Array.from({length:48},(_,i)=>({time:now-(47-i)*3600000,price:4.48+i*.0074+Math.sin(i*.57)*.055+Math.cos(i*1.8)*.02})),errors:[]};
 }
 function render(d) {
   current=d;
-  d.largeTradeThreshold=appliedThreshold;
-  const now=Date.now();
-  for(const h of d.history)h.largeFlow=d.mode==='demo'?null:aggregateLargeTradeFlow({minutes:h.minutes,now,snapshot:d.tradeSnapshot,threshold:d.largeTradeThreshold});
   renderReport(d);
   renderInsights(d);
   $('price').textContent=valid(d.price)?'$'+d.price.toFixed(4):'—';
@@ -44,14 +39,10 @@ function render(d) {
   if(other>0) visible.push({name:'其他',value:other});
   $('exchanges').innerHTML=visible.map((e,i)=>{const p=valid(e.value)&&total>0?e.value/total*100:0;return `<div class="exchange"><b>${escape(e.name)}</b><div class="track"><i style="width:${p}%;background:${colors[i]||colors[2]}"></i></div><div class="exchange-value">${money(e.value)}<small>${valid(e.value)?p.toFixed(2)+'%':'接口不可用'}</small></div></div>`}).join('');
   $('source-table').innerHTML=d.exchanges.map(e=>`<tr><td>${escape(e.name)}<small class="source-note">${escape(e.contract||'演示数据')}</small></td><td>${valid(e.price)?'$'+e.price.toFixed(4):'—'}</td><td>${valid(e.value)&&total>0?(e.value/total*100).toFixed(2)+'%':'—'}</td><td class="${cls(e.funding)}">${valid(e.funding)?(e.funding*100).toFixed(4)+'%':'—'}</td><td>${money(e.volume)}</td></tr>`).join('');
-  const names={accounts:'大户多空比 · 账户数',positions:'大户多空比 · 持仓量',global:'多空持仓人数比'};
-  $('ratios').innerHTML=d.ratios.map(r=>`<div class="ratio"><div class="ratio-title"><span>${escape(names[r.key])}</span><strong>${valid(r.ratio)?r.ratio.toFixed(2):'—'}</strong></div><div class="ratio-bar">${valid(r.long)?`<div class="buy" style="width:${r.long*100}%"></div><div class="sell" style="width:${(1-r.long)*100}%"></div>`:''}</div><div class="ratio-labels"><span class="long">多 ${valid(r.long)?(r.long*100).toFixed(1)+'%':'—'}</span><span class="short">${valid(r.long)?((1-r.long)*100).toFixed(1)+'%':'—'} 空</span></div><div class="ratio-time">${escape(r.sources?.join(" / ")||"演示 / 无覆盖")}<br>最早快照 ${time(r.timestamp)}</div></div>`).join('');
   $('history').innerHTML=d.history.map(h=>`<tr><td>${escape(period(h.minutes))}<small class="source-note">${escape(h.sources?.join(' / ')||'演示 / 无覆盖')}</small></td><td>${money(h.previous)}<small class="source-note">同组当前 ${money(h.current)}</small></td><td class="${cls(h.change)}">${valid(h.change)?(h.change>=0?'+':'')+h.change.toFixed(2)+'%':'—'}</td></tr>`).join('');
-  const max=Math.max(...d.history.map(h=>valid(h.largeFlow?.net)?Math.abs(h.largeFlow.net):0),1);
-  $('flows').innerHTML=d.history.map(h=>{const net=h.largeFlow?.net;return `<tr><td>${escape(period(h.minutes))}</td><td><div class="flow-cell"><i class="flow-line" style="width:${valid(net)?Math.abs(net)/max*95:0}px;background:${net>=0?'#40ad96':'#d99599'}"></i><span class="${cls(net)}">${!valid(net)?'未知':net===0?'买卖持平':net>0?'净买入':'净卖出'}</span></div></td><td class="${cls(net)}">${!valid(net)?'—':net===0?money(0):signed(net)}</td></tr>`}).join('');
   drawChart(d.chart);
   const isDemo=d.mode==='demo', failed=d.errors.length;
-  $('status').textContent=isDemo?'演示模式 · 所有数值均为模拟数据':!available.length?'连接失败 · 暂无可用持仓':failed?'部分接口可用 · 按实际覆盖范围汇总':'已连接 · 多交易所加权汇总';
+  $('status').textContent=isDemo?'演示模式 · 所有数值均为模拟数据':!available.length?'连接失败 · 暂无可用持仓':failed?'部分接口可用 · 按实际覆盖范围汇总':'已连接 · Binance 多空比 / 多交易所行情';
   $('status-dot').style.background=isDemo||failed?'#d4a14f':'#079d7a';
   $('notice').hidden=!isDemo&&!failed;
   $('notice').textContent=isDemo?'当前为演示数据，仅用于预览界面与功能，不代表 APT 实际行情。切换“实时接口”获取公开市场数据。':failed?`有 ${failed} 个接口未能返回数据（${d.errors.map(e=>e.key).join('、')}）。${hosted?'当前由浏览器直连交易所，可能受地区、网络或跨域策略限制。':'请检查网络或稍后刷新。'}此处未用模拟值填充缺失数据。`:'';
@@ -70,7 +61,7 @@ async function refresh() {
   const id=++requestId;
   if($('mode').value==='demo'){busy=false;$('refresh').disabled=false;render(demo());return;}
   if(current?.mode==='demo') {
-    render({mode:'live',fetchedAt:null,price:null,funding:null,oi:null,exchanges:['Binance','Bybit','OKX'].map(name=>({name,value:null})),ratios:['accounts','positions','global'].map(key=>({key,ratio:null,long:null})),history:windows.map(minutes=>({minutes,previous:null,change:null,flow:null})),chart:[],errors:[]});
+    render({mode:'live',fetchedAt:null,price:null,funding:null,oi:null,exchanges:['Binance','Bybit','OKX'].map(name=>({name,value:null})),ratios:['accounts','positions','global'].map(key=>({key,ratio:null,long:null,short:null,timestamp:null,sources:[],history:[],error:null})),history:windows.map(minutes=>({minutes,previous:null,change:null})),chart:[],errors:[]});
     current=null;
     $('updated').textContent='等待实时数据';
   }
@@ -85,19 +76,6 @@ async function refresh() {
   finally{if(id===requestId){busy=false;$('refresh').disabled=false;}}
 }
 $('mode').addEventListener('change',refresh);
-$('large-threshold-form').addEventListener('submit',event=>{
-  event.preventDefault();
-  const input=$('large-threshold'),amount=parseLargeTradeThreshold(input.value);
-  if(amount===null){
-    input.setAttribute('aria-invalid','true');
-    $('large-threshold-status').textContent='请输入不小于 0.01 的有效金额；当前仍按 '+appliedThreshold+' USDT 筛选。';
-    return;
-  }
-  input.removeAttribute('aria-invalid');
-  appliedThreshold=amount;
-  $('large-threshold-status').textContent='已应用：单条成交 ≥ '+amount+' USDT。没有达标成交显示 0；数据不足显示未知。';
-  if(current)render(current);
-});
 $('refresh').addEventListener('click',refresh);
 $('export').addEventListener('click',()=>{if(!current)return;const blob=new Blob([JSON.stringify(current,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`APTUSDT-${current.mode}-${current.fetchedAt}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
 function tick(){$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});}
