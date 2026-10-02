@@ -1,4 +1,5 @@
 import { normalizeTrades } from './trades.js';
+import { aggregateLargeTradeFlow } from './large-flows.js';
 import { aggregateFlow } from './flows.js?v=20261001-flow5b';
 import { buildAnalysis } from './market-analysis.js';
 import { WINDOWS, change, historical, flow, weighted, normalizeFunding, aggregateHistory, numeric } from './metrics.js';
@@ -65,6 +66,8 @@ export async function collect() {
   }).filter(r=>numeric(r.sumOpenInterestValue));
   const histories={Binance:[arr(d.hist5),arr(d.hist1)],Bybit:[byHistory('byoi5','bymark5'),byHistory('byoi1','bymark1')],OKX:['okxoi5','okxoi1'].map(key=>arr(d[key]?.data).map(r=>({timestamp:n(r[0]),sumOpenInterestValue:n(r[3])}))),Gate:[d.okxFlowSnapshot?.gateOpenInterest5m||[],d.okxFlowSnapshot?.gateOpenInterest1h||[]]};
   for(const name of ['Bitget','Hyperliquid'])histories[name]=[arr(d.savedOi?.series?.[name]),[]];
+  // Freeze the scheduled batch before optional live data updates ordinary-volume flow.
+  const tradeSnapshot=d.okxFlowSnapshot?structuredClone(d.okxFlowSnapshot):null;
   if(d.okxFlowSnapshot&&d.bybitTrades?.retCode===0){try{const recent=normalizeTrades('Bybit',list(d.bybitTrades));d.okxFlowSnapshot.recent=[...(d.okxFlowSnapshot.recent||[]).filter(r=>r.name!=='Bybit'),recent];}catch{}}
   const history=WINDOWS.map(minutes=>{
     const matched=Object.entries(histories).map(([name,series])=>{
@@ -72,10 +75,10 @@ export async function collect() {
       if(previous===null&&minutes>=60)previous=historical(series[1],now-minutes*60000,7200000);
       return {name,current:weights[name],previous};
     });
-    return {minutes,...aggregateHistory(matched),...aggregateFlow({minutes,now,binance:arr(d[minutes<=1440?'k5':'k1']),okxSnapshot:d.okxFlowSnapshot})};
+    return {minutes,...aggregateHistory(matched),...aggregateFlow({minutes,now,binance:arr(d[minutes<=1440?'k5':'k1']),okxSnapshot:d.okxFlowSnapshot}),largeFlow:aggregateLargeTradeFlow({minutes,now,snapshot:tradeSnapshot})};
   });
   const chartSeries=[{name:'Binance',rows:arr(d.k1).slice(-48)},{name:'Bybit',rows:list(d.byk1)},{name:'OKX',rows:arr(d.okxk1?.data)}].filter(s=>weights[s.name]>0&&s.rows.length>=48);
   const chartTimes=[...new Set(chartSeries.flatMap(s=>s.rows.map(k=>n(k[0]))))].sort((a,b)=>a-b);
   const chart=chartTimes.map(time=>{const rows=chartSeries.map(s=>({name:s.name,value:weights[s.name],price:n(s.rows.find(k=>n(k[0])===time)?.[4])}));return {time,price:rows.every(r=>numeric(r.price))?weighted(rows,'price').value:null}}).filter(r=>numeric(r.price)).slice(-48);
-  return {analysis:buildAnalysis({now,binHistory:arr(d.hist5),byHistory:list(d.byoi1),binCandles:arr(d.k1),byMarks:list(d.bymark1),funding:funding.value}),mode:'live',fetchedAt:now,price:price.value,priceChange:priceChange.value,funding:funding.value,oi,volume:vol.length?vol.reduce((s,e)=>s+e.volume,0):null,exchanges,ratios,history,chart,errors,coverage:{price:price.sources,funding:funding.sources,volume:vol.map(e=>e.name),chart:chartSeries.map(s=>s.name)},aggregation:'OI weighted; funding normalized to 8h; matched historical cohorts; Hyperliquid USDC assumed USD parity'};
+  return {analysis:buildAnalysis({now,binHistory:arr(d.hist5),byHistory:list(d.byoi1),binCandles:arr(d.k1),byMarks:list(d.bymark1),funding:funding.value}),tradeSnapshot,mode:'live',fetchedAt:now,price:price.value,priceChange:priceChange.value,funding:funding.value,oi,volume:vol.length?vol.reduce((s,e)=>s+e.volume,0):null,exchanges,ratios,history,chart,errors,coverage:{price:price.sources,funding:funding.sources,volume:vol.map(e=>e.name),chart:chartSeries.map(s=>s.name)},aggregation:'OI weighted; funding normalized to 8h; matched historical cohorts; Hyperliquid USDC assumed USD parity'};
 }

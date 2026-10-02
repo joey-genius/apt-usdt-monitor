@@ -1,5 +1,5 @@
 // Keep the error handler outside the module graph so even import/parse errors surface.
-import('./app.js?v=20261001-oi4').catch(error => {
+import('./app.js?v=20261002-large-flow').catch(error => {
   const status = document.getElementById('status');
   const report = document.getElementById('contract-report');
   const notice = document.getElementById('notice');
