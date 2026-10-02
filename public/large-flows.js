@@ -4,6 +4,13 @@ export const LARGE_TRADE_THRESHOLD = 10000;
 export const LARGE_TRADE_VENUES = ['Binance','OKX','Bybit','Bitget','Gate'];
 const MAX_AGE = 30 * 60000;
 
+export function parseLargeTradeThreshold(value) {
+  const text=String(value??'').trim();
+  if(!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text))return null;
+  const amount=Number(text);
+  return Number.isFinite(amount)&&amount>=0.01&&amount<=Number.MAX_SAFE_INTEGER?amount:null;
+}
+
 // Only execution records can pass the size filter. Candle/taker aggregates cannot.
 export function aggregateLargeTradeFlow({minutes,now,snapshot,threshold=LARGE_TRADE_THRESHOLD}) {
   if(!numeric(threshold)||threshold<=0||!numeric(minutes)||minutes<=0||!numeric(now))throw Error('Invalid large-trade window or threshold');

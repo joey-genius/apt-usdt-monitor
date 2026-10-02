@@ -6,7 +6,9 @@ export function normalizeTrades(name, rows, multiplier=1) {
     const binance=name==='Binance',okx=name==='OKX';
     const rawId=gate||binance?r.id:name==='Bybit'?r.execId:r.tradeId;
     const id=String(rawId);
-    const time=gate?(r.create_time_ms!=null?Number(r.create_time_ms):Number(r.create_time)*1000):Number(r.time??r.ts);
+    // Gate can report fractional seconds even in create_time_ms; do not treat those as epoch milliseconds.
+    const gateTime=Number(r.create_time_ms??r.create_time);
+    const time=gate?(gateTime>=1e12?gateTime:gateTime*1000):Number(r.time??r.ts);
     const size=Number(binance?r.qty:okx?r.sz:r.size),price=Number(okx?r.px:r.price);
     if(binance&&typeof r.isBuyerMaker!=='boolean')throw Error('缺少主动成交方向');
     const side=binance?(r.isBuyerMaker?'sell':'buy'):gate?(size>0?'buy':'sell'):String(r.side).toLowerCase();

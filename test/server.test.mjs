@@ -29,6 +29,9 @@ test('local server serves the new browser module and threshold control', { timeo
     assert.match(await response.text(), /export function aggregateLargeTradeFlow/);
     const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
     assert.match(html, /id="large-threshold"/);
+    assert.match(html, /id="large-threshold-form"/);
+    assert.match(html, /id="large-threshold" type="number"/);
+    assert.match(html, /id="large-threshold-status" role="status"/);
     for (const module of ['app.js', 'report.js', 'market.js', 'trades.js', 'metrics.js', 'flows.js']) {
       assert.equal((await fetch(`http://127.0.0.1:${port}/${module}`)).status, 200);
     }

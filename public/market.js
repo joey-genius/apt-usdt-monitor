@@ -1,5 +1,5 @@
-import { normalizeTrades } from './trades.js';
-import { aggregateLargeTradeFlow } from './large-flows.js';
+import { normalizeTrades } from './trades.js?v=20261003-custom-flow';
+import { aggregateLargeTradeFlow } from './large-flows.js?v=20261003-custom-flow';
 import { aggregateFlow } from './flows.js?v=20261001-flow5b';
 import { buildAnalysis } from './market-analysis.js';
 import { WINDOWS, change, historical, flow, weighted, normalizeFunding, aggregateHistory, numeric } from './metrics.js';

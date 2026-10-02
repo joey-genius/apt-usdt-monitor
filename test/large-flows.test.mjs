@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {aggregateLargeTradeFlow} from '../public/large-flows.js';
+import {aggregateLargeTradeFlow,parseLargeTradeThreshold} from '../public/large-flows.js';
 import {normalizeTrades,collectRecent} from '../scripts/recent-flows.mjs';
 
 const trade=(id,time,notional,side='buy',excluded=false)=>({id,time,notional,side,excluded,net:excluded?0:notional*(side==='buy'?1:-1)});
@@ -73,4 +73,19 @@ test('collector uses raw Binance records and validated OKX contract value; failu
 });
 test('invalid thresholds do not silently enable all-size trades',()=>{
   for(const threshold of [0,-1,NaN,Infinity,'10000'])assert.throws(()=>calculate(null,{threshold}));
+});
+test('custom threshold supports small and decimal amounts but rejects invalid input',()=>{
+  for(const [text,expected] of [['100',100],[' 500 ',500],['1234.56',1234.56],['0.01',0.01],['.5',0.5]])assert.equal(parseLargeTradeThreshold(text),expected);
+  for(const text of ['',null,undefined,' ','0','-100','Infinity','NaN','abc','1,000','0x10','1e309','9007199254740992','0.001'])assert.equal(parseLargeTradeThreshold(text),null);
+  const s=snapshot([venue('Bitget',bounded([trade('buy',400000,1234.56),trade('sell',450000,500,'sell')]))]);
+  assert.equal(calculate(s,{threshold:parseLargeTradeThreshold('500')}).net,734.56);
+  assert.equal(calculate(s,{threshold:parseLargeTradeThreshold('1234.56')}).count,1);
+  assert.equal(calculate(s,{threshold:parseLargeTradeThreshold('2000')}).count,0);
+});
+test('Gate fractional-second and millisecond timestamps normalize to the same instant',()=>{
+  const base={id:1,size:-232,price:'0.7828',create_time:1790969899.356};
+  const seconds=normalizeTrades('Gate',[{...base,create_time_ms:1790969899.356}]);
+  const millis=normalizeTrades('Gate',[{...base,create_time_ms:1790969899356}]);
+  const fallback=normalizeTrades('Gate',[base]);
+  for(const r of [seconds,millis,fallback])assert.equal(r.trades[0].time,1790969899356);
 });

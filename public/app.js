@@ -1,11 +1,12 @@
-import { renderReport } from './report.js?v=20261002-large-flow';
+import { renderReport } from './report.js?v=20261003-custom-flow';
 import { renderInsights } from './insight-ui.js';
-import { collect } from './market.js?v=20261002-large-flow';
-import { aggregateLargeTradeFlow, LARGE_TRADE_THRESHOLD } from './large-flows.js?v=20261002-large-flow';
+import { collect } from './market.js?v=20261003-custom-flow';
+import { aggregateLargeTradeFlow, LARGE_TRADE_THRESHOLD, parseLargeTradeThreshold } from './large-flows.js?v=20261003-custom-flow';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
 const windows = [5,15,30,60,240,480,720,1440,2880,4320,10080];
 let current = null, busy = false, requestId = 0;
+let appliedThreshold = LARGE_TRADE_THRESHOLD;
 const valid = n => typeof n === 'number' && Number.isFinite(n);
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => !valid(n) ? '—' : '$' + (Math.abs(n)>=1e9 ? (n/1e9).toFixed(2)+'B' : Math.abs(n)>=1e6 ? (n/1e6).toFixed(2)+'M' : Math.abs(n)>=1e3 ? (n/1e3).toFixed(2)+'K' : n.toFixed(2));
@@ -19,7 +20,7 @@ function demo() {
 }
 function render(d) {
   current=d;
-  d.largeTradeThreshold=Number($('large-threshold').value)||LARGE_TRADE_THRESHOLD;
+  d.largeTradeThreshold=appliedThreshold;
   const now=Date.now();
   for(const h of d.history)h.largeFlow=d.mode==='demo'?null:aggregateLargeTradeFlow({minutes:h.minutes,now,snapshot:d.tradeSnapshot,threshold:d.largeTradeThreshold});
   renderReport(d);
@@ -84,7 +85,19 @@ async function refresh() {
   finally{if(id===requestId){busy=false;$('refresh').disabled=false;}}
 }
 $('mode').addEventListener('change',refresh);
-$('large-threshold').addEventListener('change',()=>{if(current)render(current)});
+$('large-threshold-form').addEventListener('submit',event=>{
+  event.preventDefault();
+  const input=$('large-threshold'),amount=parseLargeTradeThreshold(input.value);
+  if(amount===null){
+    input.setAttribute('aria-invalid','true');
+    $('large-threshold-status').textContent='请输入不小于 0.01 的有效金额；当前仍按 '+appliedThreshold+' USDT 筛选。';
+    return;
+  }
+  input.removeAttribute('aria-invalid');
+  appliedThreshold=amount;
+  $('large-threshold-status').textContent='已应用：单条成交 ≥ '+amount+' USDT。没有达标成交显示 0；数据不足显示未知。';
+  if(current)render(current);
+});
 $('refresh').addEventListener('click',refresh);
 $('export').addEventListener('click',()=>{if(!current)return;const blob=new Blob([JSON.stringify(current,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`APTUSDT-${current.mode}-${current.fetchedAt}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
 function tick(){$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});}

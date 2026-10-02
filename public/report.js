@@ -21,6 +21,7 @@ export function renderReport(d){
     const f=d.mode==='demo'?null:h.largeFlow;
     row(flow,[period(h.minutes),net(f?.net)],'report-flow');
     note(flow,`主动买入 ${money(f?.buy)} · 主动卖出 ${money(f?.sell)} · 成交记录数 ${valid(f?.count)?f.count:'未知'} · 金额单位：USD 等值`);
+    if(f?.count===0&&valid(f?.net))note(flow,'已覆盖窗口内没有达到当前金额门槛的成交，可降低自定义额度查看。');
     note(flow,`最低单条上报成交金额 ≥ ${money(f?.threshold??d.largeTradeThreshold??10000)} · 已闭合窗口起点 ${stamp(f?.start)} / 终点 ${stamp(f?.end)}（UTC）`);
     note(flow,'纳入来源：'+(f?.sources?.join(' / ')||'无可用来源')+' · 快照时间 '+stamp(f?.snapshotAt));
     for(const x of f?.breakdown||[])note(flow,`${x.name}：买入 ${money(x.buy)} / 卖出 ${money(x.sell)} / 净额 ${net(x.net)} / ${valid(x.count)?x.count:'未知'} 条 / 合计 ${money(x.total)} / 已纳入大额成交占比 ${valid(x.share)?(x.share*100).toFixed(2)+'%':'未知'}`);
