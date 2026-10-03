@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '24'
       - run: node --test
-      - name: Fetch taker volumes and independent 24h trade rankings
+      - name: Fetch OKX dollar taker volumes
         run: node scripts/collect-flows.mjs
       - name: Accumulate Bitget and Hyperliquid OI history
         run: node scripts/collect-oi.mjs
