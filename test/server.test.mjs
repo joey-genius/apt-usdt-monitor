@@ -5,7 +5,7 @@ import net from 'node:net';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
-test('local server serves Binance report UI without custom trade controls', { timeout: 15000 }, async () => {
+test('local server serves independent Binance aggregate UI and manual scan controls', { timeout: 15000 }, async () => {
   const probe = net.createServer();
   probe.listen(0, '127.0.0.1');
   await once(probe, 'listening');
@@ -23,7 +23,7 @@ test('local server serves Binance report UI without custom trade controls', { ti
       child.once('exit', code => { clearTimeout(timer); reject(Error(`Server exited: ${code}`)); });
       child.stdout.once('data', () => { clearTimeout(timer); resolve(); });
     });
-    const response = await fetch(`http://127.0.0.1:${port}/report.js?v=20261003-top100`);
+    const response = await fetch(`http://127.0.0.1:${port}/report.js?v=20261003-binance-agg`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /javascript/);
     assert.match(await response.text(), /export function renderReport/);
@@ -33,14 +33,21 @@ test('local server serves Binance report UI without custom trade controls', { ti
     assert.match(html, /topLongShortAccountRatio/);
     assert.match(html, /topLongShortPositionRatio/);
     assert.match(html, /globalLongShortAccountRatio/);
-    assert.match(html, /boot\.js\?v=20261003-top100/);
-    for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'top-trades.js', 'insight-ui.js', 'insights.js']) {
+    assert.match(html, /boot\.js\?v=20261003-binance-agg/);
+    assert.match(html, /id="binance-aggregate-scan"/);
+    assert.match(html, /id="binance-aggregate-cancel" disabled/);
+    assert.match(html, /id="binance-aggregate-status" role="status"/);
+    assert.match(html, /HTTP 451 \/ 403.*不提供绕过/);
+    for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'top-trades.js', 'binance-agg.js', 'trade-amounts.js', 'insight-ui.js', 'insights.js']) {
       assert.equal((await fetch(`http://127.0.0.1:${port}/${module}?v=20261003-binance-traders`)).status, 200);
     }
     const app=await (await fetch(`http://127.0.0.1:${port}/app.js`)).text();
-    for(const module of ['report','market'])assert.ok(app.includes(`./${module}.js?v=20261003-top100`));
+    for(const module of ['report','market','binance-agg'])assert.ok(app.includes(`./${module}.js?v=20261003-binance-agg`));
     assert.ok(app.includes('./insight-ui.js?v=20261003-binance-traders'));
     assert.equal((await fetch(`http://127.0.0.1:${port}/data/top-trades.json`)).status,200);
+    const aggregateResponse=await fetch(`http://127.0.0.1:${port}/data/binance-agg.json`);
+    assert.equal(aggregateResponse.status,200);
+    assert.equal((await aggregateResponse.json()).recordType,'binance-aggregate');
     const insights=await (await fetch(`http://127.0.0.1:${port}/insight-ui.js`)).text();
     assert.match(insights,/insights\.js\?v=20261003-binance-traders/);
   } finally {

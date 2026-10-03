@@ -1,6 +1,6 @@
 import { normalizeTrades } from './trades.js?v=20261003-custom-flow';
 import { binanceTraderRatios } from './binance-traders.js?v=20261003-binance-traders';
-import { availableTopTrades } from './top-trades.js?v=20261003-top100';
+import { availableTopTrades } from './top-trades.js?v=20261003-binance-agg';
 import { aggregateFlow } from './flows.js?v=20261001-flow5b';
 import { buildAnalysis } from './market-analysis.js';
 import { WINDOWS, change, historical, flow, weighted, normalizeFunding, aggregateHistory, numeric } from './metrics.js';
@@ -19,6 +19,7 @@ async function get(url,body) {
 }
 export async function collect() {
   const endpoints={
+    binanceAggregates:typeof location!=='undefined'?new URL('./data/binance-agg.json?t='+Math.floor(Date.now()/300000),location.href).href:new URL('./data/binance-agg.json',import.meta.url).href,
     topTrades:typeof location!=='undefined'?new URL('./data/top-trades.json?t='+Math.floor(Date.now()/300000),location.href).href:new URL('./data/top-trades.json',import.meta.url).href,
     savedOi:typeof location!=='undefined'?new URL('./data/oi-history.json?t='+Math.floor(Date.now()/300000),location.href).href:new URL('./data/oi-history.json',import.meta.url).href,
     bybitTrades:'https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=APTUSDT&limit=1000',
@@ -35,6 +36,7 @@ export async function collect() {
   const results=await Promise.all(Object.entries(endpoints).map(async([key,url])=>{try{return [key,await (Array.isArray(url)?get(...url):get(url)),null]}catch(e){return [key,null,e.name==='TimeoutError'?'超时':e.message]}}));
   const d=Object.fromEntries(results.map(([k,v])=>[k,v])), errors=results.filter(([,v,e])=>e).map(([key,,message])=>({key,message}));
   const now=Date.now(), by=list(d.bybit)[0]||{}, ot=d.okxt?.data?.[0]||{}, of=d.okxf?.data?.[0]||{}, bit=d.bitget?.data?.[0]||{}, bf=d.bitgetf?.data?.[0]||{}, gate=d.gate||{}, gt=d.gatet?.[0]||{};
+  const agg=d.binanceAggregates?.recordType==='binance-aggregate'?availableTopTrades(d.binanceAggregates,now):{topTrades:null,topTradesError:'币安聚合成交快照缺失或类型无效'};
   const hi=d.hyperliquid?.[0]?.universe?.findIndex(x=>x.name==='APT'), hyper=hi>=0?d.hyperliquid[1][hi]:{};
   const binHours=d.fundInfo? n(arr(d.fundInfo).find(x=>x.symbol==='APTUSDT')?.fundingIntervalHours??8):null;
   const okHours=n(of.nextFundingTime)&&n(of.fundingTime)?(n(of.nextFundingTime)-n(of.fundingTime))/3600000:null;
@@ -70,5 +72,5 @@ export async function collect() {
   const chartSeries=[{name:'Binance',rows:arr(d.k1).slice(-48)},{name:'Bybit',rows:list(d.byk1)},{name:'OKX',rows:arr(d.okxk1?.data)}].filter(s=>weights[s.name]>0&&s.rows.length>=48);
   const chartTimes=[...new Set(chartSeries.flatMap(s=>s.rows.map(k=>n(k[0]))))].sort((a,b)=>a-b);
   const chart=chartTimes.map(time=>{const rows=chartSeries.map(s=>({name:s.name,value:weights[s.name],price:n(s.rows.find(k=>n(k[0])===time)?.[4])}));return {time,price:rows.every(r=>numeric(r.price))?weighted(rows,'price').value:null}}).filter(r=>numeric(r.price)).slice(-48);
-  return {...availableTopTrades(d.topTrades,now),analysis:buildAnalysis({now,binHistory:arr(d.hist5),byHistory:list(d.byoi1),binCandles:arr(d.k1),byMarks:list(d.bymark1),funding:funding.value}),mode:'live',fetchedAt:now,price:price.value,priceChange:priceChange.value,funding:funding.value,oi,volume:vol.length?vol.reduce((s,e)=>s+e.volume,0):null,exchanges,ratios,history,chart,errors,coverage:{price:price.sources,funding:funding.sources,volume:vol.map(e=>e.name),chart:chartSeries.map(s=>s.name)},aggregation:'OI weighted price/funding; Binance-only unweighted trader ratios; matched historical cohorts; Hyperliquid USDC assumed USD parity'};
+  return {binanceAggregates:agg.topTrades,binanceAggregatesError:agg.topTradesError,...availableTopTrades(d.topTrades,now),analysis:buildAnalysis({now,binHistory:arr(d.hist5),byHistory:list(d.byoi1),binCandles:arr(d.k1),byMarks:list(d.bymark1),funding:funding.value}),mode:'live',fetchedAt:now,price:price.value,priceChange:priceChange.value,funding:funding.value,oi,volume:vol.length?vol.reduce((s,e)=>s+e.volume,0):null,exchanges,ratios,history,chart,errors,coverage:{price:price.sources,funding:funding.sources,volume:vol.map(e=>e.name),chart:chartSeries.map(s=>s.name)},aggregation:'OI weighted price/funding; Binance-only unweighted trader ratios; matched historical cohorts; Hyperliquid USDC assumed USD parity'};
 }

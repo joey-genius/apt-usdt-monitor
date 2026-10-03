@@ -1,3 +1,4 @@
+import { availableTopTrades } from './top-trades.js?v=20261003-binance-agg';
 const valid=n=>typeof n==='number'&&Number.isFinite(n);
 const money=n=>!valid(n)?'—':'$'+(Math.abs(n)>=1e9?(n/1e9).toFixed(2)+'B':Math.abs(n)>=1e6?(n/1e6).toFixed(2)+'M':Math.abs(n)>=1e3?(n/1e3).toFixed(2)+'K':n.toFixed(2));
 const period=m=>m<60?m+'分钟':m/60+'小时';
@@ -38,14 +39,24 @@ export function renderReport(d){
  note(ratios,'ACCOUNT 按大户账户数量统计；POSITION 按大户持仓量统计。大户为 Binance 保证金余额排名前 20% 的用户；全账户指标单独对照，不代表大户。');
  note(ratios,'直接展示 Binance 官方公开接口原值，不按 OI 加权，不从比例推算资金金额。5 分钟快照，页面每 30 秒刷新；超过 15 分钟的当前样本不参与，历史仅供回看。');
   ratios.append(recent);
-  const trades=section('近24小时成交金额 Top 100');trades.className+=' top-trades';
-  note(trades,'最近一次完成采集的覆盖快照，非实时逐笔行情。仅纳入完整采集该 24 小时窗口的平台，跨平台按成交金额降序取前 100 笔，无最低金额门槛；不代表全市场。');
+  for(const config of [
+    {key:'topTrades',title:'近24小时成交金额 Top 100'},
+    {key:'binanceAggregates',title:'币安聚合成交 Top 100 · 近24小时',aggregate:true},
+  ]){
+  const aggregate=config.aggregate;
+  const trades=section(config.title);trades.className+=' top-trades'+(aggregate?' binance-aggregates':'');
+  note(trades,aggregate?'Binance aggTrades 聚合成交独立按金额降序取前 100 条，无最低金额门槛。聚合成交是聚合执行记录，不是原始委托订单，不能识别大户或具体账户；不与 Bitget 等平台原始逐笔成交混合排行或汇总。仅展示完整采集的近24小时快照，非实时。':'最近一次完成采集的覆盖快照，非实时逐笔行情。仅纳入完整采集该 24 小时窗口的平台，跨平台按成交金额降序取前 100 笔，无最低金额门槛；不代表全市场。');
   note(trades,'主动买入不等于实际充值入金，主动卖出不等于提现出金；每笔成交都有买卖双方，主动方向不代表账户资金进出。Top 100 有符号净额仅为入选成交的买卖差，不是完整 24 小时净额。');
-  const snapshot=d.mode==='demo'?null:d.topTrades;
+  let snapshot=d.mode==='demo'?null:d[config.key];
+  const wrongType=aggregate&&snapshot&&(snapshot.schemaVersion!==1||snapshot.recordType!=='binance-aggregate'||!Array.isArray(snapshot.rows)||!Array.isArray(snapshot.sources)||!snapshot.sources.length||snapshot.rows.some(r=>!r||r.exchange!=='Binance')||snapshot.sources.some(s=>!s||s.name!=='Binance'));
+  if(wrongType)snapshot=null;
+  let snapshotError=d[config.key+'Error'];
+  if(aggregate&&snapshot){const checked=availableTopTrades(snapshot);snapshot=checked.topTrades;snapshotError=checked.topTradesError;}
   const status=document.createElement('p');status.className='top-trades-status';status.setAttribute('role','status');trades.append(status);
   if(!snapshot){
     status.className+=' unavailable';
-    status.textContent=d.mode==='demo'?'演示模式：没有实际 Top 100 成交记录，不生成模拟成交。':'Top 100 快照不可用（缺失或已过期）：'+(d.topTradesError||'尚无可用的已完成采集快照；不以零成交替代。');
+    status.textContent=d.mode==='demo'?'演示模式：没有实际 Top 100 成交记录，不生成模拟成交。':(aggregate?'币安聚合成交':'')+'Top 100 快照不可用（缺失或已过期）：'+(wrongType?'快照类型或来源无效，不混入原始逐笔成交。':snapshotError||'尚无可用的已完成采集快照；不以零成交替代。');
+    if(aggregate&&d.mode!=='demo'&&d.binanceAggregatesProgress)note(trades,d.binanceAggregatesProgress);
   }else{
     const rows=snapshot.rows.slice().sort((a,b)=>b.amount-a.amount).slice(0,100);
     const covered=snapshot.sources.filter(source=>source.status==='ok');
@@ -78,13 +89,14 @@ export function renderReport(d){
     if(rows.length){
       const scroll=document.createElement('div');scroll.className='source-scroll top-trades-scroll';scroll.setAttribute('tabindex','0');scroll.setAttribute('role','region');scroll.setAttribute('aria-label','Top 100 成交明细，可横向滚动');
       const table=document.createElement('table');
-      const caption=document.createElement('caption');caption.textContent=`Top 100 入选成交 · ${rows.length} 笔 · 金额降序 · 时间为本地时区`;table.append(caption);
+      const caption=document.createElement('caption');caption.textContent=`${aggregate?'币安聚合成交 · ':''}Top 100 入选成交 · ${rows.length} 笔 · 金额降序 · 时间为本地时区`;table.append(caption);
       const head=document.createElement('thead'),heading=document.createElement('tr');
-      for(const text of ['排名','成交时间（本地）','交易所','主动方向','价格（APTUSDT）','数量（APT）','成交金额（USDT）','交易 ID']){const th=document.createElement('th');th.textContent=text;th.setAttribute('scope','col');heading.append(th)}head.append(heading);table.append(head);
+      for(const text of ['排名','成交时间（本地）','交易所','主动方向','价格（APTUSDT）','数量（APT）','成交金额（USDT）',aggregate?'聚合成交 ID（agg ID）':'交易 ID',...(aggregate?['首笔原始成交 ID','末笔原始成交 ID']:[])]){const th=document.createElement('th');th.textContent=text;th.setAttribute('scope','col');heading.append(th)}head.append(heading);table.append(head);
       const body=document.createElement('tbody');
-      rows.forEach((trade,index)=>{const line=document.createElement('tr');for(const [column,text] of [index+1,stamp(trade.time),trade.exchange,trade.side==='buy'?'主动买入':'主动卖出',trade.price,trade.quantity,amount(trade.amount),trade.id].entries()){const cell=document.createElement('td');cell.textContent=String(text);if(column===3)cell.className=trade.side==='buy'?'top-trade-buy':'top-trade-sell';line.append(cell)}body.append(line)});
+      rows.forEach((trade,index)=>{const line=document.createElement('tr');for(const [column,text] of [index+1,stamp(trade.time),trade.exchange,trade.side==='buy'?'主动买入':'主动卖出',trade.price,trade.quantity,amount(trade.amount),trade.id,...(aggregate?[trade.firstTradeId??'—',trade.lastTradeId??'—']:[])].entries()){const cell=document.createElement('td');cell.textContent=String(text);if(column===3)cell.className=trade.side==='buy'?'top-trade-buy':'top-trade-sell';line.append(cell)}body.append(line)});
       table.append(body);scroll.append(table);trades.append(scroll);
     }
+  }
   }
   const es=(d.exchanges||[]).filter(e=>valid(e.value)).sort((a,b)=>b.value-a.value),total=es.reduce((s,e)=>s+e.value,0);
  const dist=section('交易所持仓分布（小于 1% 不显示）');for(const e of es.filter(e=>total>0&&e.value/total>=.01))row(dist,[e.name,money(e.value),`(${(e.value/total*100).toFixed(2)}%)`],'report-exchange');

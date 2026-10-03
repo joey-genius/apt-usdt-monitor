@@ -1,22 +1,7 @@
 import {mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
-const SCALE=10n**18n;
-function decimal(value){
-  const s=String(value);
-  if(!/^\d+(\.\d{1,18})?$/.test(s))throw Error('Invalid price or size precision');
-  const [whole,fraction='']=s.split('.');
-  return BigInt(whole)*SCALE+BigInt(fraction.padEnd(18,'0'));
-}
-function fixed(n,places){
-  const sign=n<0n?'-':'';
-  const digits=(n<0n?-n:n).toString().padStart(places+1,'0');
-  const fraction=digits.slice(-places).replace(/0+$/,'');
-  return sign+digits.slice(0,-places)+(fraction?'.'+fraction:'');
-}
-const amount=n=>Number(fixed(n,54));
-const compare=(a,b)=>a.units===b.units?b.time-a.time||a.id.localeCompare(b.id):(a.units>b.units?-1:1);
-const totals=(buy,sell,count)=>({buy:amount(buy),sell:amount(sell),net:amount(buy-sell),netIn:amount(buy>sell?buy-sell:0n),netOut:amount(sell>buy?sell-buy:0n),turnover:amount(buy+sell),count});
+import {decimal,fixed,amount,compare,totals} from '../public/trade-amounts.js';
 
 export async function scanTrades({name,start,end,page,multiplier='1',maxPages=1200,pause=()=>Promise.resolve(),deadline=Infinity}){
   let cursor=null,buy=0n,sell=0n,count=0,pages=0,top=[];

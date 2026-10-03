@@ -1,10 +1,65 @@
-import { renderReport } from './report.js?v=20261003-top100';
+import { renderReport } from './report.js?v=20261003-binance-agg';
 import { renderInsights } from './insight-ui.js?v=20261003-binance-traders';
-import { collect } from './market.js?v=20261003-top100';
+import { collect } from './market.js?v=20261003-binance-agg';
+import { collectBinanceAggregates } from './binance-agg.js?v=20261003-binance-agg';
+import { availableTopTrades } from './top-trades.js?v=20261003-binance-agg';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
 const windows = [5,15,30,60,240,480,720,1440,2880,4320,10080];
 let current = null, busy = false, requestId = 0;
+let aggregateController = null, localAggregate = null;
+function aggregateData(d) {
+  if(d.mode==='demo')return {...d,binanceAggregates:null,binanceAggregatesError:null,binanceAggregatesProgress:null};
+  const snapshot=localAggregate?localAggregate.snapshot:d.binanceAggregates;
+  let error=localAggregate?localAggregate.error:d.binanceAggregatesError;
+  let available=null;
+  if(snapshot){
+    if(snapshot.recordType!=='binance-aggregate'||!Array.isArray(snapshot.rows)||!Array.isArray(snapshot.sources)||snapshot.rows.some(r=>!r||r.exchange!=='Binance')||snapshot.sources.some(s=>!s||s.name!=='Binance'))error='币安聚合成交快照类型或来源无效';
+    else {const checked=availableTopTrades(snapshot);available=checked.topTrades;error=checked.topTradesError;}
+  }
+  if(localAggregate&&snapshot&&!available)localAggregate={snapshot:null,error,message:error};
+  return {...d,binanceAggregates:available,binanceAggregatesError:error,binanceAggregatesProgress:localAggregate?null:d.binanceAggregatesProgress};
+}
+function aggregateControls() {
+  const isDemo=$('mode').value==='demo';
+  $('binance-aggregate-scan').disabled=isDemo||!!aggregateController;
+  $('binance-aggregate-cancel').disabled=!aggregateController;
+  $('binance-aggregate-status').textContent=isDemo?'演示模式不采集或展示真实聚合成交。':localAggregate?.message||current?.binanceAggregatesProgress||'仅手动启动浏览器采集，不随行情自动刷新。';
+}
+function renderAggregate() {
+  if(current){current=aggregateData(current);renderReport(current);}
+  else renderReport(aggregateData({mode:$('mode').value}));
+  aggregateControls();
+}
+function cancelAggregate() {
+  if(!aggregateController)return;
+  const controller=aggregateController;aggregateController=null;
+  localAggregate={snapshot:null,error:'浏览器采集已取消；不展示部分结果或回退旧快照。',message:'浏览器采集已取消。'};
+  controller.abort();renderAggregate();
+}
+async function scanAggregate() {
+  if($('mode').value==='demo'||aggregateController)return;
+  const controller=new AbortController();aggregateController=controller;
+  localAggregate={snapshot:null,error:'浏览器正在完整采集，完成前不展示部分结果。',message:'正在采集：0 页 / 0 条记录，可能需要数分钟，请保持页面打开。'};
+  renderAggregate();
+  try {
+    const snapshot=await collectBinanceAggregates({signal:controller.signal,onProgress({pages,records}){
+      if(aggregateController!==controller)return;
+      localAggregate.message=`正在采集：${pages} 页 / ${records} 条记录，尚未完成，不展示部分结果。`;
+      aggregateControls();
+    }});
+    if(aggregateController!==controller||controller.signal.aborted)return;
+    localAggregate={snapshot,error:null,message:'浏览器24小时采集完成。'};
+    const checked=aggregateData({mode:'live'});
+    if(!checked.binanceAggregates)throw Error(checked.binanceAggregatesError||'采集快照无效');
+  }catch(error){
+    if(aggregateController!==controller)return;
+    const message='币安聚合成交不可用：'+(error?.message||String(error));
+    localAggregate={snapshot:null,error:message,message};
+  }finally{
+    if(aggregateController===controller){aggregateController=null;renderAggregate();}
+  }
+}
 const valid = n => typeof n === 'number' && Number.isFinite(n);
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => !valid(n) ? '—' : '$' + (Math.abs(n)>=1e9 ? (n/1e9).toFixed(2)+'B' : Math.abs(n)>=1e6 ? (n/1e6).toFixed(2)+'M' : Math.abs(n)>=1e3 ? (n/1e3).toFixed(2)+'K' : n.toFixed(2));
@@ -17,8 +72,10 @@ function demo() {
   return {mode:'demo',topTrades:null,fetchedAt:now,price:4.826,mark:4.825,priceChange:2.84,volume:186420000,funding:.0001,nextFunding:Math.ceil(now/28800000)*28800000,oi:92840000,exchanges:[{name:'Binance',value:92840000},{name:'Bybit',value:41620000},{name:'OKX',value:28540000}],ratios,history:windows.map((minutes,i)=>{const previous=[93420000,94630000,95700000,97350000,89670000,87920000,86400000,84200000,78910000,75640000,68750000][i];return {minutes,previous,change:(92840000/previous-1)*100}}),chart:Array.from({length:48},(_,i)=>({time:now-(47-i)*3600000,price:4.48+i*.0074+Math.sin(i*.57)*.055+Math.cos(i*1.8)*.02})),errors:[]};
 }
 function render(d) {
+  d=aggregateData(d);
   current=d;
   renderReport(d);
+  aggregateControls();
   renderInsights(d);
   $('price').textContent=valid(d.price)?'$'+d.price.toFixed(4):'—';
   $('price-sub').innerHTML=`<span class="${cls(d.priceChange)}">${valid(d.priceChange)?(d.priceChange>=0?'+':'')+d.priceChange.toFixed(2)+'%':'—'}</span> <span class="muted">过去 24 小时</span>`;
@@ -59,10 +116,9 @@ function drawChart(rows) {
 }
 async function refresh() {
   const id=++requestId;
-  if($('mode').value==='demo'){busy=false;$('refresh').disabled=false;render(demo());return;}
+  if($('mode').value==='demo'){cancelAggregate();busy=false;$('refresh').disabled=false;render(demo());return;}
   if(current?.mode==='demo') {
     render({mode:'live',fetchedAt:null,price:null,funding:null,oi:null,exchanges:['Binance','Bybit','OKX'].map(name=>({name,value:null})),ratios:['accounts','positions','global'].map(key=>({key,ratio:null,long:null,short:null,timestamp:null,sources:[],history:[],error:null})),history:windows.map(minutes=>({minutes,previous:null,change:null})),chart:[],errors:[]});
-    current=null;
     $('updated').textContent='等待实时数据';
   }
   busy=true;$('refresh').disabled=true;$('status').textContent='正在刷新公开行情…';
@@ -74,15 +130,24 @@ async function refresh() {
   }
   catch(e){
     if(id!==requestId)return;
-    if(current){current={...current,topTrades:null,topTradesError:'本次行情请求失败，无法确认 Top 100 快照有效性；请刷新重试。'};renderReport(current);}
+    if(current){current={...current,topTrades:null,topTradesError:'本次行情请求失败，无法确认 Top 100 快照有效性；请刷新重试。',binanceAggregates:null,binanceAggregatesError:'本次行情请求失败，币安聚合成交快照不可用。'};renderAggregate();}
     $('status').textContent='连接失败';$('status-dot').style.background='#d16b70';$('notice').hidden=false;$('notice').textContent=(hosted?'无法获取公开行情。':'无法连接本地行情服务。')+(current?'其余行情保留上次快照，请注意底部时间；Top 100 已标记不可用。':hosted?'请检查网络并刷新页面。':'请双击“启动监测台.cmd”，再刷新页面。');
   }
   finally{if(id===requestId){busy=false;$('refresh').disabled=false;}}
 }
 $('mode').addEventListener('change',refresh);
+$('binance-aggregate-scan').addEventListener('click',scanAggregate);
+$('binance-aggregate-cancel').addEventListener('click',cancelAggregate);
 $('refresh').addEventListener('click',refresh);
 $('export').addEventListener('click',()=>{if(!current)return;const blob=new Blob([JSON.stringify(current,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`APTUSDT-${current.mode}-${current.fetchedAt}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
-function tick(){$('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});}
+function tick(){
+  $('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  const snapshot=current?.binanceAggregates||localAggregate?.snapshot;
+  if($('mode').value!=='demo'&&snapshot&&Date.now()-snapshot.windowEnd>3600000){
+    if(localAggregate?.snapshot)localAggregate.message='浏览器采集快照已过期，请手动重新采集。';
+    renderAggregate();
+  }
+}
 tick();setInterval(tick,1000);setInterval(()=>{if($('auto').checked&&!busy)refresh()},30000);refresh();
 
 
