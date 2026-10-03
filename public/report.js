@@ -48,15 +48,17 @@ export function renderReport(d){
   note(trades,aggregate?'Binance aggTrades 聚合成交独立按金额降序取前 100 条，无最低金额门槛。聚合成交是聚合执行记录，不是原始委托订单，不能识别大户或具体账户；不与 Bitget 等平台原始逐笔成交混合排行或汇总。仅展示完整采集的近24小时快照，非实时。':'最近一次完成采集的覆盖快照，非实时逐笔行情。仅纳入完整采集该 24 小时窗口的平台，跨平台按成交金额降序取前 100 笔，无最低金额门槛；不代表全市场。');
   note(trades,'主动买入不等于实际充值入金，主动卖出不等于提现出金；每笔成交都有买卖双方，主动方向不代表账户资金进出。Top 100 有符号净额仅为入选成交的买卖差，不是完整 24 小时净额。');
   let snapshot=d.mode==='demo'?null:d[config.key];
-  const wrongType=aggregate&&snapshot&&(snapshot.schemaVersion!==1||snapshot.recordType!=='binance-aggregate'||!Array.isArray(snapshot.rows)||!Array.isArray(snapshot.sources)||!snapshot.sources.length||snapshot.rows.some(r=>!r||r.exchange!=='Binance')||snapshot.sources.some(s=>!s||s.name!=='Binance'));
+  const wrongType=aggregate
+    ?snapshot&&(snapshot.schemaVersion!==1||snapshot.recordType!=='binance-aggregate'||!Array.isArray(snapshot.rows)||!Array.isArray(snapshot.sources)||!snapshot.sources.length||snapshot.rows.some(r=>!r||r.exchange!=='Binance')||snapshot.sources.some(s=>!s||s.name!=='Binance'))
+    :snapshot&&(snapshot.recordType||!Array.isArray(snapshot.rows)||!Array.isArray(snapshot.sources)||!snapshot.sources.length||snapshot.rows.some(r=>!r||r.exchange==='Binance')||snapshot.sources.some(s=>!s||typeof s.name!=='string'));
   if(wrongType)snapshot=null;
   let snapshotError=d[config.key+'Error'];
-  if(aggregate&&snapshot){const checked=availableTopTrades(snapshot);snapshot=checked.topTrades;snapshotError=checked.topTradesError;}
+  if(snapshot){const checked=availableTopTrades(snapshot);snapshot=checked.topTrades;snapshotError=checked.topTradesError;}
   const status=document.createElement('p');status.className='top-trades-status';status.setAttribute('role','status');trades.append(status);
   if(!snapshot){
     status.className+=' unavailable';
-    status.textContent=d.mode==='demo'?'演示模式：没有实际 Top 100 成交记录，不生成模拟成交。':(aggregate?'币安聚合成交':'')+'Top 100 快照不可用（缺失或已过期）：'+(wrongType?'快照类型或来源无效，不混入原始逐笔成交。':snapshotError||'尚无可用的已完成采集快照；不以零成交替代。');
-    if(aggregate&&d.mode!=='demo'&&d.binanceAggregatesProgress)note(trades,d.binanceAggregatesProgress);
+    status.textContent=d.mode==='demo'?'演示模式：没有实际 Top 100 成交记录，不生成模拟成交。':(aggregate?'币安聚合成交':'')+'Top 100 快照不可用（缺失或已过期）：'+(wrongType?(aggregate?'快照类型或来源无效，不混入原始逐笔成交。':'快照类型或来源无效，不接受聚合成交或未完整覆盖平台的记录。'):snapshotError||'尚无可用的已完成采集快照；不以零成交替代。');
+    if(d.mode!=='demo'&&d[config.key+'Progress'])note(trades,d[config.key+'Progress']);
   }else{
     const rows=snapshot.rows.slice().sort((a,b)=>b.amount-a.amount).slice(0,100);
     const covered=snapshot.sources.filter(source=>source.status==='ok');

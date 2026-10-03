@@ -1,5 +1,5 @@
 import {SCALE,decimal,amount,compare,totals} from './trade-amounts.js';
-import {DAY_MS} from './top-trades.js?v=20261003-binance-agg';
+import {DAY_MS} from './top-trades.js?v=20261004-page-scan';
 
 // This scanner uses only Binance's official endpoint. No regional-block fallback.
 export async function collectBinanceAggregates({signal,onProgress=()=>{},now=Date.now,maxPages=1200,fetchPage,pause}={}){

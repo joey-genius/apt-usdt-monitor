@@ -1,5 +1,5 @@
 // Keep the error handler outside the module graph so even import/parse errors surface.
-import('./app.js?v=20261003-binance-agg').catch(error => {
+import('./app.js?v=20261004-page-scan').catch(error => {
   const status = document.getElementById('status');
   const report = document.getElementById('contract-report');
   const notice = document.getElementById('notice');

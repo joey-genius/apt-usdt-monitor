@@ -1,6 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { collectRecent } from './recent-flows.mjs';
-import { collectTopTrades } from './top-trades.mjs';
 import { collectBinanceSnapshot } from './binance-agg.mjs';
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function pages(period,count) {
@@ -38,4 +37,5 @@ await mkdir('public/data',{recursive:true});
 await writeFile('public/data/okx-flows.json',JSON.stringify({fetchedAt,tradeCutoff,source:'Binance + OKX + Bybit + Bitget + Gate',unit:'USD',timestampConvention:'candle-open',fiveMinute,hourly,recent,gateOpenInterest5m,gateOpenInterest1h}));
 console.log(recent.map(v=>`${v.name}: ${v.status}; ${v.trades.length} trades; ${v.error||''}`).join('\n'));
 console.log(`OKX snapshot: ${fiveMinute.length} 5m rows, ${hourly.length} hourly rows; ${new Date(fetchedAt).toISOString()}`);
-await Promise.all([collectTopTrades(),collectBinanceSnapshot()]);
+// 原始逐笔 Top 100 由访问者浏览器现场采集，发布流程不再生成该快照。
+await collectBinanceSnapshot();

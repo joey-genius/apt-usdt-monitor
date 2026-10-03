@@ -1,13 +1,29 @@
-import { renderReport } from './report.js?v=20261003-binance-agg';
+import { renderReport } from './report.js?v=20261004-page-scan';
 import { renderInsights } from './insight-ui.js?v=20261003-binance-traders';
-import { collect } from './market.js?v=20261003-binance-agg';
-import { collectBinanceAggregates } from './binance-agg.js?v=20261003-binance-agg';
-import { availableTopTrades } from './top-trades.js?v=20261003-binance-agg';
+import { collect } from './market.js?v=20261004-page-scan';
+import { collectBinanceAggregates } from './binance-agg.js?v=20261004-page-scan';
+import { collectTopTrades } from './top-trades-scan.js?v=20261004-page-scan';
+import { availableTopTrades } from './top-trades.js?v=20261004-page-scan';
 const $ = id => document.getElementById(id);
 const hosted = !['localhost','127.0.0.1'].includes(location.hostname);
 const windows = [5,15,30,60,240,480,720,1440,2880,4320,10080];
 let current = null, busy = false, requestId = 0;
 let aggregateController = null, localAggregate = null;
+let rawController = null, localRaw = null, rawAutoStarted = false;
+const RAW_EXCLUDED = ['Binance','Bybit','Gate','OKX'];
+const expirySeen = new Set();
+function rawData(d) {
+  if(d.mode==='demo')return {...d,topTrades:null,topTradesError:null,topTradesProgress:null};
+  const snapshot=localRaw?localRaw.snapshot:null;
+  let error=localRaw?localRaw.error:null;
+  let available=null;
+  if(snapshot){
+    if(snapshot.recordType||!Array.isArray(snapshot.rows)||!Array.isArray(snapshot.sources)||!snapshot.sources.length||snapshot.rows.some(r=>!r||RAW_EXCLUDED.includes(r.exchange))||snapshot.sources.some(s=>!s||typeof s.name!=='string'||(s.status==='ok'&&RAW_EXCLUDED.includes(s.name))))error='原始逐笔成交快照类型或来源无效，不接受聚合成交或未完整覆盖平台的记录。';
+    else {const checked=availableTopTrades(snapshot);available=checked.topTrades;error=checked.topTradesError;}
+  }
+  if(localRaw&&snapshot&&!available)localRaw={snapshot:null,error,message:error};
+  return {...d,topTrades:available,topTradesError:error,topTradesProgress:localRaw?null:d.topTradesProgress};
+}
 function aggregateData(d) {
   if(d.mode==='demo')return {...d,binanceAggregates:null,binanceAggregatesError:null,binanceAggregatesProgress:null};
   const snapshot=localAggregate?localAggregate.snapshot:d.binanceAggregates;
@@ -26,22 +42,29 @@ function aggregateControls() {
   $('binance-aggregate-cancel').disabled=!aggregateController;
   $('binance-aggregate-status').textContent=isDemo?'演示模式不采集或展示真实聚合成交。':localAggregate?.message||current?.binanceAggregatesProgress||'仅手动启动浏览器采集，不随行情自动刷新。';
 }
-function renderAggregate() {
-  if(current){current=aggregateData(current);renderReport(current);}
-  else renderReport(aggregateData({mode:$('mode').value}));
+function rawControls() {
+  const isDemo=$('mode').value==='demo';
+  $('top-trades-scan').disabled=isDemo||!!rawController;
+  $('top-trades-cancel').disabled=!rawController;
+  $('top-trades-status').textContent=isDemo?'演示模式不采集或展示真实逐笔成交。':localRaw?.message||'打开页面即开始浏览器采集，约需半分钟；不随每30秒行情刷新重复采集。';
+}
+function renderPanels() {
+  if(current){current=rawData(aggregateData(current));renderReport(current);}
+  else renderReport(rawData(aggregateData({mode:$('mode').value})));
   aggregateControls();
+  rawControls();
 }
 function cancelAggregate() {
   if(!aggregateController)return;
   const controller=aggregateController;aggregateController=null;
   localAggregate={snapshot:null,error:'浏览器采集已取消；不展示部分结果或回退旧快照。',message:'浏览器采集已取消。'};
-  controller.abort();renderAggregate();
+  controller.abort();renderPanels();
 }
 async function scanAggregate() {
   if($('mode').value==='demo'||aggregateController)return;
   const controller=new AbortController();aggregateController=controller;
   localAggregate={snapshot:null,error:'浏览器正在完整采集，完成前不展示部分结果。',message:'正在采集：0 页 / 0 条记录，可能需要数分钟，请保持页面打开。'};
-  renderAggregate();
+  renderPanels();
   try {
     const snapshot=await collectBinanceAggregates({signal:controller.signal,onProgress({pages,records}){
       if(aggregateController!==controller)return;
@@ -57,7 +80,36 @@ async function scanAggregate() {
     const message='币安聚合成交不可用：'+(error?.message||String(error));
     localAggregate={snapshot:null,error:message,message};
   }finally{
-    if(aggregateController===controller){aggregateController=null;renderAggregate();}
+    if(aggregateController===controller){aggregateController=null;renderPanels();}
+  }
+}
+function cancelRaw() {
+  if(!rawController)return;
+  const controller=rawController;rawController=null;
+  localRaw={snapshot:null,error:'浏览器采集已取消；不展示部分结果或回退旧快照。',message:'浏览器采集已取消。'};
+  controller.abort();renderPanels();
+}
+async function scanRaw() {
+  if($('mode').value==='demo'||rawController)return;
+  const controller=new AbortController();rawController=controller;
+  localRaw={snapshot:null,error:'浏览器正在完整采集，完成前不展示部分结果。',message:'正在采集：0 页 / 0 条记录，约需半分钟，请保持页面打开。'};
+  renderPanels();
+  try {
+    const snapshot=await collectTopTrades({signal:controller.signal,onProgress({name,pages,records}){
+      if(rawController!==controller)return;
+      localRaw.message=`正在采集 ${name||'Bitget'}：${pages} 页 / ${records} 条记录，尚未完成，不展示部分结果。`;
+      rawControls();
+    }});
+    if(rawController!==controller||controller.signal.aborted)return;
+    localRaw={snapshot,error:null,message:'浏览器24小时采集完成。'};
+    const checked=rawData({mode:'live'});
+    if(!checked.topTrades)throw Error(checked.topTradesError||'采集快照无效');
+  }catch(error){
+    if(rawController!==controller)return;
+    const message='原始逐笔成交不可用：'+(error?.message||String(error));
+    localRaw={snapshot:null,error:message,message};
+  }finally{
+    if(rawController===controller){rawController=null;renderPanels();}
   }
 }
 const valid = n => typeof n === 'number' && Number.isFinite(n);
@@ -72,10 +124,11 @@ function demo() {
   return {mode:'demo',topTrades:null,fetchedAt:now,price:4.826,mark:4.825,priceChange:2.84,volume:186420000,funding:.0001,nextFunding:Math.ceil(now/28800000)*28800000,oi:92840000,exchanges:[{name:'Binance',value:92840000},{name:'Bybit',value:41620000},{name:'OKX',value:28540000}],ratios,history:windows.map((minutes,i)=>{const previous=[93420000,94630000,95700000,97350000,89670000,87920000,86400000,84200000,78910000,75640000,68750000][i];return {minutes,previous,change:(92840000/previous-1)*100}}),chart:Array.from({length:48},(_,i)=>({time:now-(47-i)*3600000,price:4.48+i*.0074+Math.sin(i*.57)*.055+Math.cos(i*1.8)*.02})),errors:[]};
 }
 function render(d) {
-  d=aggregateData(d);
+  d=rawData(aggregateData(d));
   current=d;
   renderReport(d);
   aggregateControls();
+  rawControls();
   renderInsights(d);
   $('price').textContent=valid(d.price)?'$'+d.price.toFixed(4):'—';
   $('price-sub').innerHTML=`<span class="${cls(d.priceChange)}">${valid(d.priceChange)?(d.priceChange>=0?'+':'')+d.priceChange.toFixed(2)+'%':'—'}</span> <span class="muted">过去 24 小时</span>`;
@@ -116,7 +169,8 @@ function drawChart(rows) {
 }
 async function refresh() {
   const id=++requestId;
-  if($('mode').value==='demo'){cancelAggregate();busy=false;$('refresh').disabled=false;render(demo());return;}
+  if($('mode').value==='demo'){cancelAggregate();cancelRaw();rawAutoStarted=false;busy=false;$('refresh').disabled=false;render(demo());return;}
+  if(!rawAutoStarted){rawAutoStarted=true;scanRaw();}
   if(current?.mode==='demo') {
     render({mode:'live',fetchedAt:null,price:null,funding:null,oi:null,exchanges:['Binance','Bybit','OKX'].map(name=>({name,value:null})),ratios:['accounts','positions','global'].map(key=>({key,ratio:null,long:null,short:null,timestamp:null,sources:[],history:[],error:null})),history:windows.map(minutes=>({minutes,previous:null,change:null})),chart:[],errors:[]});
     $('updated').textContent='等待实时数据';
@@ -130,23 +184,29 @@ async function refresh() {
   }
   catch(e){
     if(id!==requestId)return;
-    if(current){current={...current,topTrades:null,topTradesError:'本次行情请求失败，无法确认 Top 100 快照有效性；请刷新重试。',binanceAggregates:null,binanceAggregatesError:'本次行情请求失败，币安聚合成交快照不可用。'};renderAggregate();}
-    $('status').textContent='连接失败';$('status-dot').style.background='#d16b70';$('notice').hidden=false;$('notice').textContent=(hosted?'无法获取公开行情。':'无法连接本地行情服务。')+(current?'其余行情保留上次快照，请注意底部时间；Top 100 已标记不可用。':hosted?'请检查网络并刷新页面。':'请双击“启动监测台.cmd”，再刷新页面。');
+    if(current){current={...current,binanceAggregates:null,binanceAggregatesError:'本次行情请求失败，币安聚合成交快照不可用。'};renderPanels();}
+    $('status').textContent='连接失败';$('status-dot').style.background='#d16b70';$('notice').hidden=false;$('notice').textContent=(hosted?'无法获取公开行情。':'无法连接本地行情服务。')+(current?'其余行情保留上次快照，请注意底部时间；发布来源的币安聚合成交已标记不可用，浏览器现场采集的原始 Top 100 不受影响。':hosted?'请检查网络并刷新页面。':'请双击“启动监测台.cmd”，再刷新页面。');
   }
   finally{if(id===requestId){busy=false;$('refresh').disabled=false;}}
 }
 $('mode').addEventListener('change',refresh);
 $('binance-aggregate-scan').addEventListener('click',scanAggregate);
 $('binance-aggregate-cancel').addEventListener('click',cancelAggregate);
+$('top-trades-scan').addEventListener('click',scanRaw);
+$('top-trades-cancel').addEventListener('click',cancelRaw);
 $('refresh').addEventListener('click',refresh);
 $('export').addEventListener('click',()=>{if(!current)return;const blob=new Blob([JSON.stringify(current,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`APTUSDT-${current.mode}-${current.fetchedAt}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
 function tick(){
   $('clock').textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false});
-  const snapshot=current?.binanceAggregates||localAggregate?.snapshot;
-  if($('mode').value!=='demo'&&snapshot&&Date.now()-snapshot.windowEnd>3600000){
-    if(localAggregate?.snapshot)localAggregate.message='浏览器采集快照已过期，请手动重新采集。';
-    renderAggregate();
+  if($('mode').value==='demo')return;
+  let stale=false;
+  for(const [key,state,fallback] of [['aggregate',localAggregate,current?.binanceAggregates],['raw',localRaw,null]]){
+    const snapshot=state?.snapshot||fallback;
+    if(!state||!snapshot||Date.now()-snapshot.windowEnd<=3600000)continue;
+    const mark=key+':'+snapshot.windowEnd;
+    if(!expirySeen.has(mark)){expirySeen.add(mark);stale=true;}
   }
+  if(stale)renderPanels();
 }
 tick();setInterval(tick,1000);setInterval(()=>{if($('auto').checked&&!busy)refresh()},30000);refresh();
 

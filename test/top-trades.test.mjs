@@ -1,9 +1,75 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {scanTrades,assembleTopTrades} from '../scripts/top-trades.mjs';
+import {scanTrades,assembleTopTrades,collectTopTrades} from '../public/top-trades-scan.js';
 import {availableTopTrades,DAY_MS} from '../public/top-trades.js';
 const end=1790979000000,start=end-DAY_MS;
 const row=(id,ts,price='1',size='10',side='Buy')=>({tradeId:String(id),ts:String(ts),price,size,side});
+
+test('collectTopTrades keeps a complete venue and marks out-of-budget or failed venues without partial data',async t=>{
+  const requests=[];
+  t.mock.method(globalThis,'fetch',async url=>{
+    requests.push(String(url));
+    if(String(url).includes('fills-history'))return {ok:true,json:async()=>({code:'00000',data:[row(2,end-1,'1','10'),row(1,start-1)]})};
+    return {ok:false,status:451};
+  });
+  const snapshot=await collectTopTrades({now:()=>end+60000,venues:['Bitget']});
+  const bitget=snapshot.sources.find(s=>s.name==='Bitget');
+  assert.equal(bitget.status,'ok');assert.equal(bitget.records,1);
+  assert.equal(snapshot.sources.length,5);
+  assert.ok(snapshot.sources.filter(s=>s.status==='ok').length===1);
+  assert.match(snapshot.sources.find(s=>s.name==='OKX').error,/1818页|16分钟/);
+  assert.equal(snapshot.sources.find(s=>s.name==='OKX').status,'unsupported');
+  assert.equal(snapshot.windowEnd,end);assert.equal(snapshot.windowStart,start);
+  assert.equal(availableTopTrades(snapshot,end+1000).topTrades,snapshot);
+  assert.ok(requests.every(url=>url.startsWith('https://api.bitget.com/')));
+  const withOkx=await collectTopTrades({now:()=>end+60000,venues:['Bitget','OKX']});
+  assert.equal(withOkx.sources.find(s=>s.name==='OKX').status,'error');
+  assert.match(withOkx.sources.find(s=>s.name==='OKX').error,/HTTP 451/);
+  assert.equal(withOkx.sources.find(s=>s.name==='Bitget').status,'ok');
+  assert.ok(requests.some(url=>url.startsWith('https://www.okx.com/')));
+});
+
+test('collectTopTrades aborts without publishing partial data and honours a cancellation signal',async()=>{
+  const controller=new AbortController(),reason=new Error('cancelled by visitor');
+  controller.abort(reason);
+  await assert.rejects(collectTopTrades({signal:controller.signal,venues:['Bitget']}),e=>e===reason);
+});
+
+test('browser requests stay CORS-simple so Bitget cannot reject them with a preflight',async t=>{
+  const calls=[];
+  t.mock.method(globalThis,'fetch',async(url,init)=>{
+    calls.push({url:String(url),init});
+    return {ok:true,json:async()=>({code:'00000',data:[row(2,end-1),row(1,start-1)]})};
+  });
+  await collectTopTrades({now:()=>end+60000,venues:['Bitget']});
+  assert.ok(calls.length>=1);
+  for(const {init} of calls){
+    const headers=init.headers??{};
+    assert.deepEqual(Object.keys(headers),[],'自定义请求头会触发 Bitget 403 预检');
+    assert.equal(init.cache,'no-store');
+    assert.ok(init.signal,'请求必须可取消');
+  }
+});
+
+test('cancelling mid-request aborts the live fetch instead of retrying it',async t=>{
+  const controller=new AbortController();
+  let attempts=0,aborted=false;
+  t.mock.method(globalThis,'fetch',async(_url,init)=>{
+    attempts++;
+    return await new Promise((resolve,reject)=>{
+      const signal=init.signal;
+      if(signal.aborted){aborted=true;reject(signal.reason);return;}
+      signal.addEventListener('abort',()=>{aborted=true;reject(signal.reason);},{once:true});
+    });
+  });
+  const scanning=collectTopTrades({signal:controller.signal,venues:['Bitget']});
+  await new Promise(r=>setTimeout(r,30));
+  const reason=new Error('cancelled by visitor');
+  controller.abort(reason);
+  await assert.rejects(scanning,e=>e===reason);
+  assert.equal(attempts,1,'取消后不得继续重试');
+  assert.ok(aborted,'进行中的请求必须收到 abort');
+});
 
 test('paginates beyond24h, includes exact start, excludes end, ranks and sums only eligible records',async()=>{
   const pages=[[row(6,end,'1','1000'),row(5,end-1,'0.1','0.2'),row(4,start+1,'2','10','Sell')],[row(3,start,'1','100'),row(2,start-1,'100','100')]];
