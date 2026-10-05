@@ -1,4 +1,3 @@
-import { initDca } from './dca-ui.js';
 import { renderReport } from './report.js?v=20261004-page-scan';
 import { renderInsights } from './insight-ui.js?v=20261003-binance-traders';
 import { collect } from './market.js?v=20261004-page-scan';
@@ -214,5 +213,3 @@ tick();setInterval(tick,1000);setInterval(()=>{if($('auto').checked&&!busy)refre
 
 $('report-date').textContent=new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});
 $('copy-report').addEventListener('click',async()=>{try{await navigator.clipboard.writeText('APT/USDT 合约\n'+$('contract-report').innerText);$('copy-report').textContent='已复制';}catch{$('copy-report').textContent='复制失败，请选中文本复制';}setTimeout(()=>$('copy-report').textContent='▢ 复制数据报告',2500)});
-
-initDca();

@@ -12,6 +12,7 @@ async function snapshot() {
 const files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css','/market.js':'market.js','/metrics.js':'metrics.js','/flows.js':'flows.js','/binance-traders.js':'binance-traders.js','/trades.js':'trades.js','/data/oi-history.json':'data/oi-history.json','/data/okx-flows.json':'data/okx-flows.json','/boot.js':'boot.js','/report.js':'report.js','/report.css':'report.css','/market-analysis.js':'market-analysis.js','/insights.js':'insights.js','/insight-ui.js':'insight-ui.js'};
 files['/dca.js']='dca.js';
 files['/dca-ui.js']='dca-ui.js';
+files['/dca-boot.js']='dca-boot.js';
 files['/top-trades.js']='top-trades.js';
 files['/top-trades-scan.js']='top-trades-scan.js';
 files['/data/top-trades.json']='data/top-trades.json';
