@@ -45,7 +45,7 @@
 - 最新价格、24小时涨跌、成交额、资金费率及下次结算时间。
 - Binance、Bybit、OKX 持仓分布，明确显示实际接入范围。
 - Binance 大户账户多空比、大户持仓多空比、全体账户多空比。
-- BTC 链上钱包动态：对截图中标记为 Bitfinex Hacker Seized Funds 的地址查询余额与近期交易，每30秒刷新。
+- BTC 链上钱包动态：查询 Arkham 公开公告列出的 Silk Road、Bitfinex 扣押地址及截图中的 Bitfinex 案地址，每30秒刷新；逐项显示标签来源。
 - 5分钟至168小时持仓变化、主动买卖净额，以及48小时价格曲线。
 - 每30秒刷新、手动刷新、独立演示模式、JSON快照导出。
 
@@ -84,7 +84,8 @@ node --test
 - [Binance USDⓈ-M Futures](https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Open-Interest-Statistics)：价格、资金费率、持仓、多空比和K线。
 - [Bybit Tickers](https://bybit-exchange.github.io/docs/v5/market/tickers)：`openInterestValue`。
 - [OKX Open Interest](https://www.okx.com/docs-v5/en/#public-data-rest-api-get-open-interest)：`oiUsd`。
-- [mempool.space API](https://mempool.space/docs/api)：公开 Bitcoin 地址与交易数据。当前只覆盖页面列出的一个案件相关地址，不是美国政府钱包完整名册；地址归属来自第三方标签，非官方确认。
+- [Arkham 公开公告](https://info.arkm.com/announcements/the-us-government-is-now-an-entity-on-arkham)：公布 Silk Road 与 Bitfinex 扣押 BTC 地址。该公告不代表美国政府钱包完整名册，地址归属来自第三方标签，非官方确认。
+- [mempool.space API](https://mempool.space/docs/api)：公开 Bitcoin 地址与交易数据。
 
 只读行情工具，不连接交易账户，不执行交易。
 

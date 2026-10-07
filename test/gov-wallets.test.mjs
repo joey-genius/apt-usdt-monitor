@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fetchWalletActivity, TRACKED_WALLETS} from '../public/gov-wallets.js';
+import {fetchAllWalletActivity, fetchWalletActivity, TRACKED_WALLETS} from '../public/gov-wallets.js';
 
 const address = TRACKED_WALLETS[0].address;
 const tx = (txid, input, outputs, status = {confirmed: true, block_time: 100}) => ({
@@ -37,4 +37,18 @@ test('rejects failed or malformed explorer responses instead of inventing empty 
     [tx('c'.repeat(64), {address, value: '100'}, [])]
   ];
   await assert.rejects(fetchWalletActivity({fetchImpl: async () => ({ok: true, status: 200, json: async () => responses.shift()})}), /交易金额数据无效/);
+});
+
+test('loads all sourced addresses and keeps per-address failures visible', async () => {
+  const calls=[];
+  const result=await fetchAllWalletActivity({fetchImpl:async url=>{
+    calls.push(url);
+    if(url.includes(TRACKED_WALLETS[1].address))return {ok:false,status:429,json:async()=>({})};
+    if(url.endsWith('/txs'))return {ok:true,status:200,json:async()=>[]};
+    return {ok:true,status:200,json:async()=>({chain_stats:{funded_txo_sum:100,spent_txo_sum:20},mempool_stats:{funded_txo_sum:0,spent_txo_sum:0}})};
+  }});
+  assert.equal(calls.length,TRACKED_WALLETS.length*2);
+  assert.equal(result.results.length,2);
+  assert.equal(result.errors.length,1);
+  assert.equal(result.errors[0].wallet.address,TRACKED_WALLETS[1].address);
 });

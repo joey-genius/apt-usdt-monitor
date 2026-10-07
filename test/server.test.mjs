@@ -36,7 +36,8 @@ test('local server serves live wallet monitor assets with existing market panels
     assert.match(html, /美国政府相关钱包 · 链上动态/);
     assert.match(html, /id="gov-wallet-refresh"/);
     assert.match(html, /id="gov-wallet-rows"/);
-    assert.match(html, /只覆盖此地址，不代表美国政府钱包完整清单/);
+    assert.match(html, /Arkham 公开公告明确列出的 Silk Road、Bitfinex 扣押 BTC 地址/);
+    assert.match(html, /https:\/\/info\.arkm\.com\/announcements\/the-us-government-is-now-an-entity-on-arkham/);
     assert.match(html, /boot\.js\?v=20261004-page-scan/);
     assert.match(html, /id="binance-aggregate-scan"/);
     assert.match(html, /id="binance-aggregate-cancel" disabled/);
@@ -52,7 +53,7 @@ test('local server serves live wallet monitor assets with existing market panels
     for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'top-trades.js', 'top-trades-scan.js', 'binance-agg.js', 'trade-amounts.js', 'gov-wallets.js', 'insight-ui.js', 'insights.js']) {
       assert.equal((await fetch(`http://127.0.0.1:${port}/${module}?v=20261004-page-scan`)).status, 200);
     }
-    const walletCss = await fetch(`http://127.0.0.1:${port}/gov-wallets.css?v=20261007-gov-wallets`);
+    const walletCss = await fetch(`http://127.0.0.1:${port}/gov-wallets.css?v=20261007-gov-wallets-v2`);
     assert.equal(walletCss.status, 200);
     assert.match(walletCss.headers.get('content-type'), /css/);
     const scanner = await (await fetch(`http://127.0.0.1:${port}/top-trades-scan.js?v=20261004-page-scan`)).text();
