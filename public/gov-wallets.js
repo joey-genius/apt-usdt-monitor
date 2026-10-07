@@ -6,6 +6,7 @@ export const TRACKED_WALLETS=[
 ];
 
 const API='https://mempool.space/api',EXPLORER='https://mempool.space';
+export const RECENT_WINDOW_MS=7*24*60*60*1000;
 const formatBtc=satoshis=>(satoshis/1e8).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:8});
 
 export async function fetchWalletActivity({wallet=TRACKED_WALLETS[0],fetchImpl=fetch,signal}={}){
@@ -39,13 +40,14 @@ export async function fetchWalletActivity({wallet=TRACKED_WALLETS[0],fetchImpl=f
   return {wallet,balance,rows,fetchedAt:Date.now()};
 }
 
-export async function fetchAllWalletActivity({wallets=TRACKED_WALLETS,fetchImpl=fetch,signal}={}){
+export async function fetchAllWalletActivity({wallets=TRACKED_WALLETS,fetchImpl=fetch,signal,now=Date.now()}={}){
   const settled=await Promise.allSettled(wallets.map(wallet=>fetchWalletActivity({wallet,fetchImpl,signal})));
   const results=settled.filter(item=>item.status==='fulfilled').map(item=>item.value);
   const errors=settled.flatMap((item,index)=>item.status==='rejected'?[{wallet:wallets[index],message:item.reason?.message||String(item.reason)}]:[]);
   if(!results.length)throw new Error(errors.map(error=>`${error.wallet.label}：${error.message}`).join('；')||'所有钱包查询失败');
-  const rows=results.flatMap(result=>result.rows).sort((a,b)=>(b.time||0)-(a.time||0));
-  return {results,errors,rows,fetchedAt:Date.now()};
+  const cutoff=now-RECENT_WINDOW_MS;
+  const rows=results.flatMap(result=>result.rows).filter(row=>row.time!==null&&row.time>=cutoff&&row.time<=now).sort((a,b)=>b.time-a.time);
+  return {results,errors,rows,fetchedAt:now};
 }
 
 function dateTime(timestamp){return timestamp?new Date(timestamp).toLocaleString('zh-CN',{hour12:false}):'等待确认';}
@@ -63,7 +65,7 @@ function renderWallets(container,results){
 }
 function renderRows(tbody,rows){
   tbody.replaceChildren();
-  if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.className='gov-wallet-empty';td.textContent='接口未返回近期交易记录';tr.append(td);tbody.append(tr);return;}
+  if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.className='gov-wallet-empty';td.textContent='最近 7 天没有已确认的交易记录';tr.append(td);tbody.append(tr);return;}
   for(const row of rows.slice(0,30)){
     const tr=document.createElement('tr'),timeCell=document.createElement('td');timeCell.append(dateTime(row.time));const caseName=document.createElement('span');caseName.className='gov-wallet-case';caseName.textContent=row.wallet.label;timeCell.append(caseName);tr.append(timeCell);
     const direction=document.createElement('td');direction.textContent=row.direction;direction.className=row.direction==='转出'?'gov-wallet-direction-out':row.direction==='转入'?'gov-wallet-direction-in':'';tr.append(direction);
@@ -78,7 +80,7 @@ export function initGovWallets({documentRef=document,fetchImpl=fetch,intervalMs=
   let busy=false,timer;
   const refresh=async()=>{
     if(busy)return;busy=true;refreshButton.disabled=true;status.removeAttribute('data-state');status.textContent=`正在查询 ${TRACKED_WALLETS.length} 个 Bitcoin 地址…`;
-    try{const data=await fetchAllWalletActivity({fetchImpl,signal:AbortSignal.timeout(15000)});renderWallets(wallets,data.results);renderRows(tbody,data.rows);status.textContent=`更新于 ${dateTime(data.fetchedAt)} · ${data.results.length}/${TRACKED_WALLETS.length} 个地址 · ${Math.min(data.rows.length,30)} 笔近期记录${data.errors.length?` · ${data.errors.length} 个地址查询失败`:''}`;if(data.errors.length)status.dataset.state='error';}
+    try{const data=await fetchAllWalletActivity({fetchImpl,signal:AbortSignal.timeout(15000)});renderWallets(wallets,data.results);renderRows(tbody,data.rows);status.textContent=`更新于 ${dateTime(data.fetchedAt)} · ${data.results.length}/${TRACKED_WALLETS.length} 个地址 · ${Math.min(data.rows.length,30)} 笔最近 7 天记录${data.errors.length?` · ${data.errors.length} 个地址查询失败`:''}`;if(data.errors.length)status.dataset.state='error';}
     catch(error){status.dataset.state='error';status.textContent=`查询失败：${error?.message||String(error)}。稍后自动重试。`;if(tbody.children.length===0)renderRows(tbody,[]);}
     finally{busy=false;refreshButton.disabled=false;}
   };

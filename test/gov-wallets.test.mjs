@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fetchAllWalletActivity, fetchWalletActivity, TRACKED_WALLETS} from '../public/gov-wallets.js';
+import {fetchAllWalletActivity, fetchWalletActivity, RECENT_WINDOW_MS, TRACKED_WALLETS} from '../public/gov-wallets.js';
 
 const address = TRACKED_WALLETS[0].address;
 const tx = (txid, input, outputs, status = {confirmed: true, block_time: 100}) => ({
@@ -51,4 +51,21 @@ test('loads all sourced addresses and keeps per-address failures visible', async
   assert.equal(result.results.length,2);
   assert.equal(result.errors.length,1);
   assert.equal(result.errors[0].wallet.address,TRACKED_WALLETS[1].address);
+});
+
+test('returns only confirmed transactions within the most recent seven days', async () => {
+  const now = 200 * 24 * 60 * 60 * 1000;
+  const result = await fetchAllWalletActivity({wallets: [TRACKED_WALLETS[0]], now, fetchImpl: async url => ({
+    ok: true,
+    status: 200,
+    json: async () => url.endsWith('/txs')
+      ? [
+        tx('a'.repeat(64), {address: 'elsewhere', value: 1}, [{address, value: 1}], {confirmed: true, block_time: (now - RECENT_WINDOW_MS) / 1000}),
+        tx('b'.repeat(64), {address: 'elsewhere', value: 1}, [{address, value: 1}], {confirmed: true, block_time: (now - RECENT_WINDOW_MS - 1000) / 1000}),
+        tx('c'.repeat(64), {address: 'elsewhere', value: 1}, [{address, value: 1}], {confirmed: false})
+      ]
+      : {chain_stats: {funded_txo_sum: 0, spent_txo_sum: 0}, mempool_stats: {funded_txo_sum: 0, spent_txo_sum: 0}}
+  })});
+  assert.deepEqual(result.rows.map(row => row.txid), ['a'.repeat(64)]);
+  assert.equal(result.fetchedAt, now);
 });
