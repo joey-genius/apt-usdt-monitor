@@ -5,7 +5,7 @@ import net from 'node:net';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
-test('local server serves independent Binance aggregate UI, page-open raw scan controls and the scanner module', { timeout: 15000 }, async () => {
+test('local server serves live wallet monitor assets with existing market panels', { timeout: 15000 }, async () => {
   const probe = net.createServer();
   probe.listen(0, '127.0.0.1');
   await once(probe, 'listening');
@@ -33,6 +33,10 @@ test('local server serves independent Binance aggregate UI, page-open raw scan c
     assert.match(html, /topLongShortAccountRatio/);
     assert.match(html, /topLongShortPositionRatio/);
     assert.match(html, /globalLongShortAccountRatio/);
+    assert.match(html, /美国政府相关钱包 · 链上动态/);
+    assert.match(html, /id="gov-wallet-refresh"/);
+    assert.match(html, /id="gov-wallet-rows"/);
+    assert.match(html, /只覆盖此地址，不代表美国政府钱包完整清单/);
     assert.match(html, /boot\.js\?v=20261004-page-scan/);
     assert.match(html, /id="binance-aggregate-scan"/);
     assert.match(html, /id="binance-aggregate-cancel" disabled/);
@@ -45,9 +49,12 @@ test('local server serves independent Binance aggregate UI, page-open raw scan c
     assert.match(html, /在打开页面时自动开始浏览器采集/);
     assert.match(html, /aria-label="原始逐笔成交浏览器采集"/);
     assert.doesNotMatch(html, /href="\.\/data\/top-trades\.json"/);
-    for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'top-trades.js', 'top-trades-scan.js', 'binance-agg.js', 'trade-amounts.js', 'insight-ui.js', 'insights.js']) {
+    for (const module of ['app.js', 'report.js', 'market.js', 'binance-traders.js', 'top-trades.js', 'top-trades-scan.js', 'binance-agg.js', 'trade-amounts.js', 'gov-wallets.js', 'insight-ui.js', 'insights.js']) {
       assert.equal((await fetch(`http://127.0.0.1:${port}/${module}?v=20261004-page-scan`)).status, 200);
     }
+    const walletCss = await fetch(`http://127.0.0.1:${port}/gov-wallets.css?v=20261007-gov-wallets`);
+    assert.equal(walletCss.status, 200);
+    assert.match(walletCss.headers.get('content-type'), /css/);
     const scanner = await (await fetch(`http://127.0.0.1:${port}/top-trades-scan.js?v=20261004-page-scan`)).text();
     assert.match(scanner, /export async function collectTopTrades/);
     const app=await (await fetch(`http://127.0.0.1:${port}/app.js`)).text();
